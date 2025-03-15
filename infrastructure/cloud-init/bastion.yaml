@@ -1,0 +1,54 @@
+#cloud-config bastion host
+    package_update: true
+    package_upgrade: true
+
+    # Install required packages
+    packages:
+    - openssh-server
+    - fail2ban
+
+    write_files:
+    - path: /etc/ssh/sshd_config
+        content: |
+        Port 2222
+        PasswordAuthentication no
+        PermitRootLogin no
+        PubkeyAuthentication yes
+        ChallengeResponseAuthentication no
+        UsePAM yes
+        X11Forwarding no
+        PrintMotd no
+        AcceptEnv LANG LC_*
+        Subsystem sftp /usr/lib/openssh/sftp-server
+        AllowUsers azureuser
+
+    # Fail2ban configuration to protect SSH
+    - path: /etc/fail2ban/jail.local
+        content: |
+        [sshd]
+        enabled = true
+        port = 2222
+        filter = sshd
+        logpath = /var/log/auth.log
+        maxretry = 5
+        bantime = 3600
+
+    runcmd:
+    # Set proper permissions for SSH directory
+    - mkdir -p /home/azureuser/.ssh
+    - chmod 700 /home/azureuser/.ssh
+    - touch /home/azureuser/.ssh/authorized_keys
+    - chmod 600 /home/azureuser/.ssh/authorized_keys
+    - chown -R azureuser:azureuser /home/azureuser/.ssh
+
+    # Start and restart services
+    - systemctl restart ssh
+    - systemctl enable fail2ban
+    - systemctl start fail2ban
+
+    # Configure firewall
+    - ufw allow 2222/tcp
+    - ufw --force enable
+
+    # Log completion
+    - echo "Security hardening complete" >> /var/log/cloud-init-output.log

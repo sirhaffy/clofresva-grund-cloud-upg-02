@@ -1,0 +1,54 @@
+#cloud-config reverse proxy
+        package_update: true
+        package_upgrade: true
+
+        packages:
+        - nginx
+        - openssh-server
+
+        write_files:
+        - path: /etc/nginx/sites-available/reverse-proxy.conf
+            content: |
+            server {
+                listen 80;
+                server_name _;
+
+                location / {
+                    proxy_pass http://${app_server_ip}:${app_server_port};
+                    proxy_http_version 1.1;
+                    proxy_set_header Upgrade \$http_upgrade;
+                    proxy_set_header Connection 'upgrade';
+                    proxy_set_header Host \$host;
+                    proxy_cache_bypass \$http_upgrade;
+                }
+            }
+
+        # SSH configuration
+        - path: /etc/ssh/sshd_config
+            content: |
+            Port 22
+            PasswordAuthentication no
+            PubkeyAuthentication yes
+            PermitRootLogin no
+            ChallengeResponseAuthentication no
+            UsePAM yes
+            X11Forwarding no
+            PrintMotd no
+            AcceptEnv LANG LC_*
+            Subsystem sftp /usr/lib/openssh/sftp-server
+            AllowUsers azureuser
+
+        runcmd:
+        # Configure SSH
+        - systemctl restart ssh
+
+        # Configure Nginx reverse proxy
+        - ln -sf /etc/nginx/sites-available/reverse-proxy.conf /etc/nginx/sites-enabled/
+        - rm -f /etc/nginx/sites-enabled/default
+        - nginx -t && systemctl restart nginx
+        - systemctl enable nginx
+
+        # Configure firewall
+        - ufw allow 80/tcp
+        - ufw allow 22/tcp
+        - ufw --force enable

@@ -1,0 +1,33 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "resourceGroupName": {
+        "value": "RGCloFreSvaUpg02"
+      },
+      "adminEmail": {
+        "value": "haffy@icloud.com"
+      },
+      "adminUsername": {
+        "value": "azureuser"
+      },
+      "appServerIp": {
+        "value": "10.0.2.10"
+      },
+      "appServerPort": {
+        "value": "5000"
+      },
+      "reverseProxyIp": {
+        "value": "10.0.1.10"
+      },
+      "githubOrg": {
+        "value": "Campus-Molndal-CLOH24"
+      },
+      "githubRepoName": {
+        "value": "CloFreSvaUpg02App"
+      },
+      "appName": {
+        "value": "CloFreSvaUpg02App"
+      }
+    }
+  }
