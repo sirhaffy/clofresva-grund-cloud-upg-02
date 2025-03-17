@@ -4,6 +4,17 @@ param adminUsername string
 param sshPublicKey string
 param subnetId string
 param customData string
+param configHash string = '' // Default empty if not provided
+param deploymentTimestamp string = utcNow()
+
+// Add other parameters needed by the VM extension
+param githubOrg string = ''
+param githubRepoName string = ''
+param appServerPort string = ''
+param githubToken string = ''
+
+// Use current time for forcing updates to VM extensions
+var vmName = empty(configHash) ? 'BastionHostVM' : 'BastionHostVM-${take(configHash, 8)}'
 
 // Public IP for Bastion Host
 resource bastionPublicIp 'Microsoft.Network/publicIPAddresses@2021-05-01' = {
@@ -41,7 +52,7 @@ resource bastionNic 'Microsoft.Network/networkInterfaces@2021-05-01' = {
 
 // Bastion Host VM
 resource bastionVm 'Microsoft.Compute/virtualMachines@2021-11-01' = {
-  name: 'BastionHostVM'
+  name: vmName
   location: location
   properties: {
     hardwareProfile: {
@@ -87,4 +98,24 @@ resource bastionVm 'Microsoft.Compute/virtualMachines@2021-11-01' = {
   }
 }
 
+// Configure VM to update on every deployment
+resource configureVm 'Microsoft.Compute/virtualMachines/extensions@2021-11-01' = {
+  name: '${bastionVm.name}/ConfigureApp'
+  location: location
+  properties: {
+    publisher: 'Microsoft.Azure.Extensions'
+    type: 'CustomScript'
+    typeHandlerVersion: '2.1'
+    autoUpgradeMinorVersion: true
+    settings: {
+      timestamp: deploymentTimestamp  // Forces the extension to run on every deployment
+    }
+    protectedSettings: {
+      commandToExecute: !empty(githubOrg) && !empty(githubRepoName) ? 'curl -s https://raw.githubusercontent.com/${githubOrg}/${githubRepoName}/main/scripts/configure.sh | bash -s -- ${appServerPort} ${githubToken}' : 'echo "No configuration required"'
+    }
+  }
+}
+
 output publicIp string = bastionPublicIp.properties.ipAddress
+output privateIp string = bastionNic.properties.ipConfigurations[0].properties.privateIPAddress
+output vmName string = bastionVm.name

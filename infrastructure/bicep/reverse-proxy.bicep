@@ -7,10 +7,15 @@ param customData string
 param privateIpAddress string
 param appServerIp string
 param appServerPort string
+param configHash string = '' // Add this parameter
+param deploymentTimestamp string = utcNow()
+
+// Use hash in VM name to force recreation when config changes significantly
+var vmName = empty(configHash) ? 'ReverseProxyVM' : 'ReverseProxyVM-${take(configHash, 8)}'
 
 // Public IP for Reverse Proxy
 resource reverseProxyPublicIp 'Microsoft.Network/publicIPAddresses@2021-05-01' = {
-  name: 'ReverseProxyIP'
+  name: 'ReverseProxyPublicIP'
   location: location
   sku: {
     name: 'Standard'
@@ -45,7 +50,7 @@ resource reverseProxyNic 'Microsoft.Network/networkInterfaces@2021-05-01' = {
 
 // Reverse Proxy VM
 resource reverseProxyVm 'Microsoft.Compute/virtualMachines@2021-11-01' = {
-  name: 'ReverseProxyVM'
+  name: vmName
   location: location
   properties: {
     hardwareProfile: {
@@ -91,5 +96,23 @@ resource reverseProxyVm 'Microsoft.Compute/virtualMachines@2021-11-01' = {
   }
 }
 
+// Configure VM to update on every deployment
+resource configureVm 'Microsoft.Compute/virtualMachines/extensions@2021-11-01' = {
+  name: '${reverseProxyVm.name}/ConfigureNginx'
+  location: location
+  properties: {
+    publisher: 'Microsoft.Azure.Extensions'
+    type: 'CustomScript'
+    typeHandlerVersion: '2.1'
+    autoUpgradeMinorVersion: true
+    settings: {
+      timestamp: deploymentTimestamp  // Forces the extension to run on every deployment
+    }
+    protectedSettings: {
+      commandToExecute: 'bash -c "sudo systemctl restart nginx"'
+    }
+  }
+}
+
 output publicIp string = reverseProxyPublicIp.properties.ipAddress
-output privateIp string = privateIpAddress
+output privateIp string = reverseProxyNic.properties.ipConfigurations[0].properties.privateIPAddress

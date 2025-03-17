@@ -11,13 +11,16 @@ param githubOrg string
 param githubRepoName string
 param githubToken string
 param appName string
+param bastionConfigHash string = ''
+param reverseProxyConfigHash string = ''
+param appServerConfigHash string = ''
 
 // Read cloud-init files - adjust paths as needed
 var bastionCloudInit = loadFileAsBase64('../cloud-init/bastion.yaml')
 var reverseProxyCloudInit = loadFileAsBase64('../cloud-init/reverse-proxy.yaml')
 var appServerCloudInit = loadFileAsBase64('../cloud-init/app-server.yaml')
 
-// Deploy network resources
+// Deploy network resources (VNet, subnets, NSGs, etc)
 module networking 'networking.bicep' = {
   name: 'networkDeployment'
   params: {
@@ -58,6 +61,11 @@ module bastion 'bastion.bicep' = {
     sshPublicKey: sshPublicKey
     subnetId: networking.outputs.bastionSubnetId
     customData: bastionCloudInit
+    configHash: bastionConfigHash
+    githubOrg: githubOrg
+    githubRepoName: githubRepoName
+    githubToken: githubToken
+    appServerPort: appServerPort
   }
 }
 
@@ -74,6 +82,7 @@ module reverseProxy 'reverse-proxy.bicep' = {
     privateIpAddress: reverseProxyIp
     appServerIp: appServerIp
     appServerPort: appServerPort
+    configHash: reverseProxyConfigHash  // Add this line
   }
 }
 
@@ -93,6 +102,7 @@ module appServer 'app-server.bicep' = {
     githubRepoName: githubRepoName
     githubToken: githubToken
     appName: appName
+    configHash: appServerConfigHash  // Add this line
   }
 }
 
@@ -100,3 +110,19 @@ module appServer 'app-server.bicep' = {
 output bastionHostIp string = bastion.outputs.publicIp
 output reverseProxyIp string = reverseProxy.outputs.publicIp
 output appServerIp string = appServer.outputs.privateIp
+
+output connectionStrings object = {
+  ssh: {
+    // SSH to Bastion Host
+    bastionHost: 'ssh ${adminUsername}@${bastion.outputs.publicIp} -p 2222'
+
+    // SSH to Reverse Proxy via Bastion Host
+    reverseProxy: 'ssh -J ${adminUsername}@${bastion.outputs.publicIp}:2222 ${adminUsername}@${reverseProxy.outputs.privateIp}'
+
+    // SSH to App Server via Reverse Proxy
+    appServer: 'ssh -J ${adminUsername}@${bastion.outputs.publicIp}:2222 ${adminUsername}@${appServer.outputs.privateIp}'
+  }
+
+  // Web application URL
+  webApplication: 'http://${reverseProxy.outputs.publicIp}'
+}

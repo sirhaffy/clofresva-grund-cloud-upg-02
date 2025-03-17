@@ -10,6 +10,11 @@ param githubOrg string
 param githubRepoName string
 param githubToken string
 param appName string
+param configHash string = '' // Add this parameter
+param deploymentTimestamp string = utcNow()
+
+// Use hash in VM name to force recreation when config changes significantly
+var vmName = empty(configHash) ? 'AppServerVM' : 'AppServerVM-${take(configHash, 8)}'
 
 // Network interface for App Server
 resource appServerNic 'Microsoft.Network/networkInterfaces@2021-05-01' = {
@@ -33,7 +38,7 @@ resource appServerNic 'Microsoft.Network/networkInterfaces@2021-05-01' = {
 
 // App Server VM
 resource appServerVm 'Microsoft.Compute/virtualMachines@2021-11-01' = {
-  name: 'AppServerVM'
+  name: vmName
   location: location
   properties: {
     hardwareProfile: {
@@ -79,4 +84,22 @@ resource appServerVm 'Microsoft.Compute/virtualMachines@2021-11-01' = {
   }
 }
 
-output privateIp string = privateIpAddress
+// Configure App Server to update the app on every deployment
+resource configureVm 'Microsoft.Compute/virtualMachines/extensions@2021-11-01' = {
+  name: '${appServerVm.name}/ConfigureApp'
+  location: location
+  properties: {
+    publisher: 'Microsoft.Azure.Extensions'
+    type: 'CustomScript'
+    typeHandlerVersion: '2.1'
+    autoUpgradeMinorVersion: true
+    settings: {
+      timestamp: deploymentTimestamp  // Forces the extension to run on every deployment
+    }
+    protectedSettings: {
+      commandToExecute: !empty(githubOrg) && !empty(githubRepoName) ? 'curl -s https://raw.githubusercontent.com/${githubOrg}/${githubRepoName}/main/scripts/configure-app.sh | bash -s -- ${appServerPort} ${githubToken} ${appName}' : 'echo "No app configuration required"'
+    }
+  }
+}
+
+output privateIp string = appServerNic.properties.ipConfigurations[0].properties.privateIPAddress

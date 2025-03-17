@@ -1,33 +1,51 @@
 {
-    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
-    "contentVersion": "1.0.0.0",
-    "parameters": {
-      "resourceGroupName": {
-        "value": "RGCloFreSvaUpg02"
-      },
-      "adminEmail": {
-        "value": "haffy@icloud.com"
-      },
-      "adminUsername": {
-        "value": "azureuser"
-      },
-      "appServerIp": {
-        "value": "10.0.2.10"
-      },
-      "appServerPort": {
-        "value": "5000"
-      },
-      "reverseProxyIp": {
-        "value": "10.0.1.10"
-      },
-      "githubOrg": {
-        "value": "Campus-Molndal-CLOH24"
-      },
-      "githubRepoName": {
-        "value": "CloFreSvaUpg02App"
-      },
-      "appName": {
-        "value": "CloFreSvaUpg02App"
-      }
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "${LOCATION}"
+    },
+    "resourceGroupName": {
+      "value": "${RESOURCE_GROUP}"
+    },
+    "adminEmail": {
+      "value": "${ADMIN_EMAIL}"
+    },
+    "adminUsername": {
+      "value": "${ADMIN_USERNAME}"
+    },
+    "sshPublicKey": {
+      "value": "${SSH_PUBLIC_KEY}"
+    },
+    "appServerIp": {
+      "value": "${APP_SERVER_IP}"
+    },
+    "appServerPort": {
+      "value": "${APP_SERVER_PORT}"
+    },
+    "reverseProxyIp": {
+      "value": "${REVERSE_PROXY_IP}"
+    },
+    "githubOrg": {
+      "value": "${GITHUB_ORG}"
+    },
+    "githubRepoName": {
+      "value": "${GITHUB_REPO_NAME}"
+    },
+    "githubToken": {
+      "value": "${GITHUB_TOKEN}"
+    },
+    "appName": {
+      "value": "${APP_NAME}"
+    },
+    "bastionConfigHash": {
+      "value": "${BASTION_HASH}"
+    },
+    "reverseProxyConfigHash": {
+      "value": "${PROXY_HASH}"
+    },
+    "appServerConfigHash": {
+      "value": "${APP_HASH}"
     }
   }
+}

@@ -688,19 +688,19 @@ Host bastionvm
     HostName <BastionHost_Public_IP>
     User azureuser
     Port 2222
-    IdentityFile ~/.ssh/azure_key
+    IdentityFile ~/.ssh/clofresva_gc_upg02_azure_key
 
 Host appserver
     HostName 10.0.2.10  # Använd det statiska IP:t direkt istället för variabel
     User azureuser
     ProxyJump bastionvm
-    IdentityFile ~/.ssh/azure_key
+    IdentityFile ~/.ssh/clofresva_gc_upg02_azure_key
 
 Host reverseproxy
     HostName 10.0.1.10  # Använd det statiska IP:t direkt istället för variabel
     User azureuser
     ProxyJump bastionvm
-    IdentityFile ~/.ssh/azure_key
+    IdentityFile ~/.ssh/clofresva_gc_upg02_azure_key
 
 # Spara och stäng filen.
 'ctrl + x' > y > enter
@@ -765,7 +765,7 @@ git push origin main
 Anslut till din AppServerVM via SSH. 
 // TODO
 ```bash
-ssh -i ~/.ssh/azure_key azureuser@<AppServer_Public_IP>
+ssh -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@<AppServer_Public_IP>
 ```
 
 Kör följande kommandon för att installera och konfigurera runner på din AppServerVM.

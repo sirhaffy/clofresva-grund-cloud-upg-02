@@ -1,0 +1,246 @@
+name: Deploy Azure Infrastructure
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'infrastructure/**'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.check.outputs.should_deploy }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Bicep
+        uses: anthony-c-martin/setup-bicep@v0.1
+
+      - name: Validate Bicep files
+        run: |
+          echo "Validating Bicep files..."
+          az bicep build --file infrastructure/bicep/main.bicep
+
+      - name: Check for cloud-init template files
+        id: check
+        run: |
+          if [ -f "infrastructure/cloud-init/reverse-proxy.yaml.template" ] && \
+             [ -f "infrastructure/cloud-init/app-server.yaml.template" ] && \
+             [ -f "infrastructure/cloud-init/bastion.yaml" ]; then
+            echo "All cloud-init files found."
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+          else
+            echo "Missing cloud-init template files!"
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+  deploy:
+    needs: validate
+    if: needs.validate.outputs.should_deploy == 'true'
+    runs-on: ubuntu-latest
+    environment: production  # Create this environment in GitHub repository settings
+
+    env:
+      RESOURCE_GROUP: RGCloFreSvaUpg02
+      LOCATION: northeurope
+      APP_SERVER_IP: 10.0.2.10
+      APP_SERVER_PORT: 5000
+      REVERSE_PROXY_IP: 10.0.1.10
+      GITHUB_ORG: Campus-Molndal-CLOH24
+      GITHUB_REPO_NAME: CloFreSvaUpg02App
+      APP_NAME: CloFreSvaUpg02App
+      ADMIN_USERNAME: azureuser
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Bicep
+        uses: anthony-c-martin/setup-bicep@v0.1
+
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Verify Azure connection
+        run: |
+          echo "Verifying Azure connection..."
+          az account show --query name -o tsv || { echo "Azure login failed"; exit 1; }
+
+      - name: Create resource group if needed
+        run: |
+          if ! az group show --name $RESOURCE_GROUP &>/dev/null; then
+            echo "Creating resource group $RESOURCE_GROUP in $LOCATION..."
+            az group create --name $RESOURCE_GROUP --location $LOCATION
+          else
+            echo "Using existing resource group $RESOURCE_GROUP."
+          fi
+
+      - name: Calculate config hashes
+        id: config-hash
+        run: |
+          mkdir -p temp
+          export app_server_ip=${{ env.APP_SERVER_IP }}
+          export app_server_port=${{ env.APP_SERVER_PORT }}
+          export github_org=${{ env.GITHUB_ORG }}
+          export github_repo_name=${{ env.GITHUB_REPO_NAME }}
+          export github_token=${{ secrets.GITHUB_TOKEN }}
+          export app_name=${{ env.APP_NAME }}
+          export admin_username=${{ env.ADMIN_USERNAME }}
+
+          echo "Processing cloud-init templates..."
+          envsubst < infrastructure/cloud-init/reverse-proxy.yaml.template > temp/reverse-proxy.yaml
+          envsubst < infrastructure/cloud-init/app-server.yaml.template > temp/app-server.yaml
+          cp infrastructure/cloud-init/bastion.yaml temp/bastion.yaml
+
+          echo "Calculating config hashes..."
+          BASTION_HASH=$(sha256sum temp/bastion.yaml | cut -d' ' -f1)
+          PROXY_HASH=$(sha256sum temp/reverse-proxy.yaml | cut -d' ' -f1)
+          APP_HASH=$(sha256sum temp/app-server.yaml | cut -d' ' -f1)
+
+          echo "BASTION_HASH=$BASTION_HASH" >> $GITHUB_ENV
+          echo "PROXY_HASH=$PROXY_HASH" >> $GITHUB_ENV
+          echo "APP_HASH=$APP_HASH" >> $GITHUB_ENV
+
+          echo "Generated hash values:"
+          echo "Bastion: ${BASTION_HASH:0:8}"
+          echo "Proxy: ${PROXY_HASH:0:8}"
+          echo "App: ${APP_HASH:0:8}"
+
+      - name: Check SSH key format
+        run: |
+          if [[ ! "${{ secrets.SSH_PUBLIC_KEY }}" =~ ^ssh-.*$ ]]; then
+            echo "Error: SSH_PUBLIC_KEY doesn't appear to be in a valid format"
+            echo "SSH key should start with 'ssh-rsa', 'ssh-ed25519', or similar"
+            exit 1
+          else
+            echo "SSH key format appears valid."
+          fi
+
+      - name: What-if deployment
+        run: |
+          echo "Running what-if deployment to check for changes..."
+          az deployment group what-if \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --template-file infrastructure/bicep/main.bicep \
+            --parameters location=${{ env.LOCATION }} \
+            --parameters resourceGroupName=${{ env.RESOURCE_GROUP }} \
+            --parameters adminUsername=${{ env.ADMIN_USERNAME }} \
+            --parameters sshPublicKey="${{ secrets.SSH_PUBLIC_KEY }}" \
+            --parameters appServerIp=${{ env.APP_SERVER_IP }} \
+            --parameters appServerPort=${{ env.APP_SERVER_PORT }} \
+            --parameters reverseProxyIp=${{ env.REVERSE_PROXY_IP }} \
+            --parameters githubOrg=${{ env.GITHUB_ORG }} \
+            --parameters githubRepoName=${{ env.GITHUB_REPO_NAME }} \
+            --parameters githubToken=${{ secrets.GITHUB_TOKEN }} \
+            --parameters appName=${{ env.APP_NAME }} \
+            --parameters bastionConfigHash=${{ env.BASTION_HASH }} \
+            --parameters reverseProxyConfigHash=${{ env.PROXY_HASH }} \
+            --parameters appServerConfigHash=${{ env.APP_HASH }}
+
+      - name: Deploy infrastructure
+        id: deploy
+        run: |
+          echo "Deploying infrastructure..."
+          az deployment group create \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --template-file infrastructure/bicep/main.bicep \
+            --parameters location=${{ env.LOCATION }} \
+            --parameters resourceGroupName=${{ env.RESOURCE_GROUP }} \
+            --parameters adminUsername=${{ env.ADMIN_USERNAME }} \
+            --parameters sshPublicKey="${{ secrets.SSH_PUBLIC_KEY }}" \
+            --parameters appServerIp=${{ env.APP_SERVER_IP }} \
+            --parameters appServerPort=${{ env.APP_SERVER_PORT }} \
+            --parameters reverseProxyIp=${{ env.REVERSE_PROXY_IP }} \
+            --parameters githubOrg=${{ env.GITHUB_ORG }} \
+            --parameters githubRepoName=${{ env.GITHUB_REPO_NAME }} \
+            --parameters githubToken=${{ secrets.GITHUB_TOKEN }} \
+            --parameters appName=${{ env.APP_NAME }} \
+            --parameters bastionConfigHash=${{ env.BASTION_HASH }} \
+            --parameters reverseProxyConfigHash=${{ env.PROXY_HASH }} \
+            --parameters appServerConfigHash=${{ env.APP_HASH }}
+
+      - name: Verify deployment success
+        run: |
+          echo "Verifying deployment..."
+          DEPLOYMENT_STATE=$(az deployment group show \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name main \
+            --query properties.provisioningState -o tsv)
+
+          if [ "$DEPLOYMENT_STATE" != "Succeeded" ]; then
+            echo "Deployment failed with status: $DEPLOYMENT_STATE"
+            exit 1
+          else
+            echo "Deployment succeeded!"
+          fi
+
+      - name: Get deployment outputs
+        run: |
+          echo "Getting deployment outputs..."
+          OUTPUTS=$(az deployment group show \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name main \
+            --query properties.outputs \
+            -o json)
+
+          echo "Getting Bastion Host IP..."
+          BASTION_IP=$(az deployment group show \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name bastionDeployment \
+            --query properties.outputs.publicIp.value \
+            -o tsv)
+
+          echo "Getting Reverse Proxy IP..."
+          REVERSE_PROXY_IP=$(az deployment group show \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name reverseProxyDeployment \
+            --query properties.outputs.publicIp.value \
+            -o tsv)
+
+          echo "BASTION_IP=$BASTION_IP" >> $GITHUB_ENV
+          echo "REVERSE_PROXY_IP=$REVERSE_PROXY_IP" >> $GITHUB_ENV
+
+          # Save connection info to file
+          echo "$OUTPUTS" > deployment-outputs.json
+
+      - name: Verify VM accessibility
+        run: |
+          echo "Verifying Reverse Proxy public IP is accessible..."
+          # Try pinging the IP (may not work if ICMP is blocked)
+          timeout 10s ping -c 3 ${{ env.REVERSE_PROXY_IP }} || echo "Ping failed, but this may be normal"
+
+          # Try connecting to port 80 which should be open on reverse proxy
+          timeout 10s nc -zv ${{ env.REVERSE_PROXY_IP }} 80 || echo "Port 80 not accessible yet, this could be normal during startup"
+
+      - name: Clean up temporary files
+        run: rm -rf temp
+
+      - name: Output deployment information
+        run: |
+          echo "==============================================="
+          echo " ** Deployment completed successfully! **"
+          echo "==============================================="
+          echo ""
+          echo "Bastion Host IP: ${{ env.BASTION_IP }}"
+          echo "Reverse Proxy IP: ${{ env.REVERSE_PROXY_IP }}"
+          echo "App Server Internal IP: ${{ env.APP_SERVER_IP }}"
+          echo ""
+          echo "Access the application at: http://${{ env.REVERSE_PROXY_IP }}"
+          echo ""
+          echo "SSH to bastion host: ssh ${{ env.ADMIN_USERNAME }}@${{ env.BASTION_IP }} -p 2222"
+          echo ""
+          echo "Full connection details saved to deployment-outputs.json"
+
+      - name: Upload deployment outputs
+        uses: actions/upload-artifact@v3
+        with:
+          name: deployment-info
+          path: deployment-outputs.json
+          retention-days: 30
