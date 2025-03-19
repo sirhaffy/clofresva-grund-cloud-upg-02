@@ -194,7 +194,7 @@ all:
     storage_account: "${STORAGE_ACCOUNT}"
     blob_endpoint: "${BLOB_ENDPOINT}"
     public_proxy_ip: "${PROXY_IP}"
-    github_repo: "${GITHUB_REPO}"
+    REPO_GITHUB: "${REPO_GITHUB}"
     github_token: "${RUNNER_TOKEN}"
 EOF
 
@@ -231,13 +231,13 @@ EOF
   # Säkerställ att GitHub-variabler är exporterade för Ansible
   # Läs in .env-filen igen för att säkerställa att eventuella manuella ändringar finns med
   source .env
-  export GITHUB_REPO RUNNER_TOKEN
+  export REPO_GITHUB RUNNER_TOKEN
 
   # Run the playbooks
   ANSIBLE_CONFIG=./ansible/ansible.cfg ansible-playbook -i ./ansible/inventories/azure_rm.yml ./ansible/playbooks/site.yml
 else
   echo "Skipping Ansible playbooks. You can run them later with:"
-  echo "source .env && export GITHUB_REPO RUNNER_TOKEN && ansible-playbook -i ./ansible/inventories/azure_rm.yml ./ansible/playbooks/site.yml"
+  echo "source .env && export REPO_GITHUB RUNNER_TOKEN && ansible-playbook -i ./ansible/inventories/azure_rm.yml ./ansible/playbooks/site.yml"
 fi
 
 echo "Deployment process complete!"

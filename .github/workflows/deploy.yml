@@ -4,6 +4,15 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      skip_ansible:
+        description: 'Skip Ansible configuration'
+        required: false
+        default: 'false'
+      full_deployment:
+        description: 'Run full infrastructure deployment'
+        required: false
+        default: 'false'
 
 env:
   PROJECT_NAME: ${{ secrets.PROJECT_NAME }}
@@ -13,9 +22,44 @@ env:
   RUNNER_TOKEN: ${{ secrets.RUNNER_TOKEN }}
 
 jobs:
+  check-changes:
+    name: Check Changed Files
+    runs-on: ubuntu-latest
+    outputs:
+      run_infra: ${{ steps.filter.outputs.infra }}
+      run_webapp: ${{ steps.filter.outputs.webapp }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v44
+
+      - name: Set outputs based on changed files
+        id: filter
+        run: |
+          # Default to not running infra unless specified
+          echo "infra=${{ github.event.inputs.full_deployment == 'true' }}" >> $GITHUB_OUTPUT
+          echo "webapp=true" >> $GITHUB_OUTPUT
+
+          # Check if infrastructure files were changed
+          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+            if [[ $file == infrastructure/* || $file == ansible/* || $file == .github/workflows/* ]]; then
+              echo "infra=true" >> $GITHUB_OUTPUT
+              break
+            fi
+          done
+
   deploy-infrastructure:
     name: Deploy Infrastructure
+    needs: check-changes
+    if: ${{ needs.check-changes.outputs.run_infra == 'true' }}
     runs-on: ubuntu-latest
+    outputs:
+      BASTION_IP: ${{ steps.outputs.outputs.BASTION_IP }}
+      APP_IP: ${{ steps.outputs.outputs.APP_IP }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -55,6 +99,7 @@ jobs:
           deploymentName: main
 
       - name: Get Deployment Outputs
+        id: outputs
         run: |
           echo "Getting deployment outputs..."
           DEPLOYMENT_OUTPUTS=$(az deployment group show \
@@ -76,20 +121,20 @@ jobs:
           echo "STORAGE_ACCOUNT=$STORAGE_ACCOUNT" >> $GITHUB_ENV
           echo "BLOB_ENDPOINT=$BLOB_ENDPOINT" >> $GITHUB_ENV
 
-      - name: Create Ansible Inventory
+          # Set outputs for other jobs
+          echo "BASTION_IP=$BASTION_IP" >> $GITHUB_OUTPUT
+          echo "APP_IP=$APP_IP" >> $GITHUB_OUTPUT
+
+      - name: Run Ansible (Only App Server Setup)
+        if: ${{ github.event.inputs.skip_ansible != 'true' }}
         run: |
+          sudo apt update
+          sudo apt install -y ansible
+
           mkdir -p ./ansible/inventories
           cat > ./ansible/inventories/azure_rm.yml << EOF
           all:
             hosts:
-              bastion:
-                ansible_host: ${{ env.BASTION_IP }}
-                ansible_user: azureuser
-                ansible_ssh_private_key_file: ~/.ssh/id_clofresvagcupg02
-              reverse_proxy:
-                ansible_host: ${{ env.PROXY_IP }}
-                ansible_user: azureuser
-                ansible_ssh_private_key_file: ~/.ssh/id_clofresvagcupg02
               app_server:
                 ansible_host: ${{ env.APP_IP }}
                 ansible_user: azureuser
@@ -103,28 +148,25 @@ jobs:
               github_token: ${{ env.RUNNER_TOKEN }}
           EOF
 
-      - name: Install Ansible
-        run: |
-          sudo apt update
-          sudo apt install -y ansible
-
-      - name: Wait for SSH Service
-        run: |
           echo "Waiting for SSH to be available..."
           sleep 60
 
-          for i in {1..10}; do
-            if nc -z -w5 ${{ env.BASTION_IP }} 22; then
-              echo "SSH is ready!"
-              break
-            fi
-            echo "Waiting for SSH... attempt $i/10"
-            sleep 30
-          done
+          # Endast köra app-server playbook istället för site.yml som innehåller allt
+          ansible-playbook -i ./ansible/inventories/azure_rm.yml ./ansible/playbooks/app-server.yml || echo "Ansible problem encountered, continuing with app deployment"
 
-      - name: Run Ansible Playbooks
-        run: |
-          ansible-playbook -i ./ansible/inventories/azure_rm.yml ./ansible/playbooks/site.yml -v
+  deploy-app:
+    name: Deploy Application
+    runs-on: ubuntu-latest
+    needs: [check-changes, deploy-infrastructure]
+    if: ${{ always() && needs.check-changes.outputs.run_webapp == 'true' && (needs.deploy-infrastructure.result == 'success' || needs.deploy-infrastructure.result == 'skipped') }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
 
       - name: Build Web App
         run: |
@@ -135,10 +177,11 @@ jobs:
         with:
           name: webapp
           path: ./publish
+          retention-days: 1
 
-  deploy-app:
-    name: Deploy Application
-    needs: deploy-infrastructure
+  deploy-to-server:
+    name: Deploy to Server
+    needs: deploy-app
     runs-on: self-hosted
     steps:
       - name: Download App Artifact
