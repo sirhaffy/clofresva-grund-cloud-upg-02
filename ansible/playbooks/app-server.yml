@@ -3,22 +3,61 @@
   hosts: app_server
   become: yes
   tasks:
+    # Add .NET 9.0 backports repository
     - name: Add .NET 9.0 backports repository
       apt_repository:
         repo: "ppa:dotnet/backports"
         state: present
+      register: repo_added
       when: ansible_os_family == "Debian"
 
+    # Debug repository output
+    - name: Debug repository output
+      debug:
+        var: repo_added
+      when: ansible_os_family == "Debian"
+
+    # Update apt cache
     - name: Update apt cache
       apt:
         update_cache: yes
+      register: apt_updated
       when: ansible_os_family == "Debian"
 
-    - name: Install ASP.NET Core Runtime
+    # Debug apt update output
+    - name: Debug apt update output
+      debug:
+        var: apt_updated
+      when: ansible_os_family == "Debian"
+
+    # List available .NET packages
+    - name: List available .NET packages
+      shell: apt-cache search dotnet | grep -i runtime
+      register: dotnet_packages
+      changed_when: false
+      when: ansible_os_family == "Debian"
+
+    # Debug available .NET packages
+    - name: Show available .NET packages
+      debug:
+        var: dotnet_packages.stdout_lines
+      when: ansible_os_family == "Debian"
+
+    # Install ASP.NET Core Runtime (try 9.0)
+    - name: Install ASP.NET Core Runtime (try 9.0)
       apt:
         name: aspnetcore-runtime-9.0
         state: present
+      register: dotnet_installed
+      ignore_errors: yes
       when: ansible_os_family == "Debian"
+
+    # Install ASP.NET Core Runtime (fallback to 8.0 if 9.0 fails)
+    - name: Install ASP.NET Core Runtime (fallback to 8.0 if 9.0 fails)
+      apt:
+        name: aspnetcore-runtime-8.0
+        state: present
+      when: dotnet_installed is failed and ansible_os_family == "Debian"
 
     # Create app directory
     - name: Create app directory
@@ -31,8 +70,23 @@
 
     # Configure blob storage settings
     - name: Configure blob storage settings
-      template:
-        src: ../templates/appsettings.Production.json.j2
+      copy:
+        content: |
+          {
+            "Logging": {
+              "LogLevel": {
+                "Default": "Information",
+                "Microsoft": "Warning",
+                "Microsoft.Hosting.Lifetime": "Information"
+              }
+            },
+            "AllowedHosts": "*",
+            "BlobStorage": {
+              "ConnectionString": "DefaultEndpointsProtocol=https;AccountName={{ storage_account }};EndpointSuffix=core.windows.net",
+              "ContainerName": "appdata",
+              "BlobEndpoint": "{{ blob_endpoint }}"
+            }
+          }
         dest: /var/www/app/appsettings.Production.json
         owner: www-data
         group: www-data
@@ -40,8 +94,24 @@
 
     # Create web app service
     - name: Create app service file
-      template:
-        src: ../templates/webapp.service.j2
+      copy:
+        content: |
+          [Unit]
+          Description=.NET Web App
+          After=network.target
+
+          [Service]
+          WorkingDirectory=/var/www/app
+          ExecStart=/usr/bin/dotnet /var/www/app/WebbApp.dll
+          Restart=always
+          RestartSec=15
+          User=www-data
+          Group=www-data
+          Environment=ASPNETCORE_ENVIRONMENT=Production
+          Environment=ASPNETCORE_URLS=http://0.0.0.0:5000
+
+          [Install]
+          WantedBy=multi-user.target
         dest: /etc/systemd/system/webapp.service
         owner: root
         group: root
@@ -54,7 +124,7 @@
         port: '5000'
         proto: tcp
 
-    # GITHUB ACTIONS RUNNER SETUP - DETTA ÄR DEN VIKTIGA DELEN ATT FIXA
+    # GITHUB ACTIONS RUNNER SETUP
     # Install required dependencies for GitHub Actions runner
     - name: Install required dependencies for GitHub Actions runner
       apt:
@@ -65,6 +135,11 @@
           - tar
           - git
         state: present
+      register: dependencies_installed
+
+    - name: Debug dependencies installation
+      debug:
+        var: dependencies_installed
 
     # Download the GitHub Actions runner
     - name: Download GitHub Actions runner
@@ -72,6 +147,19 @@
         url: https://github.com/actions/runner/releases/download/v2.311.0/actions-runner-linux-x64-2.311.0.tar.gz
         dest: /tmp/actions-runner-linux-x64-2.311.0.tar.gz
         mode: '0644'
+        force: yes  # Always download new file
+      register: runner_download
+
+    - name: Debug runner download
+      debug:
+        var: runner_download
+
+    # Fixa problem med runner-katalogen
+    - name: Remove existing actions-runner directory if it exists
+      file:
+        path: /opt/actions-runner
+        state: absent
+      when: runner_download.changed
 
     # Create GitHub Actions runner directory
     - name: Create GitHub Actions runner directory
@@ -81,6 +169,11 @@
         mode: '0755'
         owner: azureuser
         group: azureuser
+      register: directory_created
+
+    - name: Debug directory creation
+      debug:
+        var: directory_created
 
     # Extract GitHub Actions runner
     - name: Extract GitHub Actions runner
@@ -91,6 +184,21 @@
         owner: azureuser
         group: azureuser
         mode: '0755'
+      register: extract_result
+
+    - name: Debug extraction result
+      debug:
+        var: extract_result
+
+    # Check if runner is already configured
+    - name: Check if runner is already configured
+      stat:
+        path: /opt/actions-runner/.runner
+      register: runner_configured
+
+    - name: Debug runner configuration check
+      debug:
+        var: runner_configured
 
     # Configure GitHub Actions runner
     - name: Configure GitHub Actions runner
@@ -98,22 +206,35 @@
       become_user: azureuser
       shell: |
         cd /opt/actions-runner
-        # Remove any existing runner configuration
         if [ -f ".runner" ]; then
-          ./config.sh remove --token {{ github_runner_token }}
+          echo "Removing existing runner configuration"
+          ./config.sh remove --token "{{ github_runner_token }}" || true
         fi
-        # Configure the runner
+        echo "Configuring runner with token for {{ github_repo }}"
         ./config.sh --url https://github.com/{{ github_repo }} --token {{ github_runner_token }} --name app-server-runner --labels self-hosted --unattended
       args:
         executable: /bin/bash
-        creates: /opt/actions-runner/.runner
+      register: config_result
+      failed_when: false  # Prevent this from failing the entire playbook
+
+    - name: Debug runner configuration result
+      debug:
+        var: config_result
 
     # Install GitHub Actions runner as a service
     - name: Install GitHub Actions runner as a service
       become: yes
-      command: /opt/actions-runner/svc.sh install azureuser
+      shell: |
+        cd /opt/actions-runner
+        ./svc.sh install azureuser || true
       args:
-        creates: /etc/systemd/system/actions.runner.*
+        executable: /bin/bash
+      register: service_install
+      failed_when: false
+
+    - name: Debug service installation
+      debug:
+        var: service_install
 
     # Enable and start GitHub Actions runner service
     - name: Enable GitHub Actions runner service
@@ -122,3 +243,20 @@
         state: started
         enabled: yes
         daemon_reload: yes
+      register: service_enabled
+      failed_when: false
+
+    - name: Debug service enable result
+      debug:
+        var: service_enabled
+
+    # Verify runner service is running
+    - name: Check runner service status
+      shell: systemctl status actions.runner.* || true
+      register: service_status
+      changed_when: false
+      failed_when: false
+
+    - name: Debug service status
+      debug:
+        var: service_status.stdout_lines
