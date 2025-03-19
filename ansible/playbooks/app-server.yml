@@ -3,7 +3,7 @@
   hosts: app_server
   become: yes
   tasks:
-    - name: Add .NET backports repository
+    - name: Add .NET 9.0 backports repository
       apt_repository:
         repo: "ppa:dotnet/backports"
         state: present
@@ -67,7 +67,7 @@
           WorkingDirectory=/var/www/app
           ExecStart=/usr/bin/dotnet /var/www/app/WebbApp.dll
           Restart=always
-          RestartSec=10
+          RestartSec=15
           User=www-data
           Group=www-data
           Environment=ASPNETCORE_ENVIRONMENT=Production
@@ -86,7 +86,6 @@
         proto: tcp
 
     # GITHUB ACTIONS RUNNER SETUP
-    # Download the GitHub Actions runner package
     - name: Download GitHub Actions runner
       get_url:
         url: https://github.com/actions/runner/releases/download/v2.311.0/actions-runner-linux-x64-2.311.0.tar.gz
