@@ -205,21 +205,31 @@
       become: yes
       become_user: azureuser
       shell: |
+        set -x  # Echo commands for better debugging
         cd /opt/actions-runner
+
+        echo "Current directory content:"
+        ls -la
+
+        echo "GitHub repo: {{ github_repo }}"
+        echo "Token available: {{ 'Yes' if github_runner_token else 'No' }}"
+
         if [ -f ".runner" ]; then
           echo "Removing existing runner configuration"
-          ./config.sh remove --token "{{ github_runner_token }}" || true
+          ./config.sh remove --token "{{ github_runner_token }}" || echo "Failed to remove runner, continuing anyway"
+          rm -f .runner .credentials || echo "Failed to remove runner files, continuing anyway"
         fi
+
         echo "Configuring runner with token for {{ github_repo }}"
-        ./config.sh --url https://github.com/{{ github_repo }} --token {{ github_runner_token }} --name app-server-runner --labels self-hosted --unattended
+        ./config.sh --url https://github.com/{{ github_repo }} --token {{ github_runner_token }} --name app-server-runner --labels self-hosted --unattended --replace
+
+        echo "Configuration result: $?"
+        echo "Runner files after configuration:"
+        ls -la
       args:
         executable: /bin/bash
       register: config_result
-      failed_when: false  # Prevent this from failing the entire playbook
-
-    - name: Debug runner configuration result
-      debug:
-        var: config_result
+      failed_when: false
 
     # Install GitHub Actions runner as a service
     - name: Install GitHub Actions runner as a service
@@ -260,3 +270,40 @@
     - name: Debug service status
       debug:
         var: service_status.stdout_lines
+
+    # Create a diagnostic file with all relevant information
+    - name: Create diagnostic file
+      become: yes
+      copy:
+        content: |
+          # GitHub Runner Diagnostics
+          Generated: {{ ansible_date_time.iso8601 }}
+
+          ## System Information
+          OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          Hostname: {{ ansible_hostname }}
+
+          ## Runner Information
+          GitHub Repository: {{ github_repo }}
+          Runner Token Available: {{ 'Yes' if github_runner_token else 'No' }}
+
+          ## Dotnet Status
+          Dotnet Installation: {{ 'Success' if not dotnet_installed.failed else 'Failed' }}
+
+          ## Runner Installation Steps
+          Dependencies: {{ 'Success' if dependencies_installed.changed == false else 'Changed' }}
+          Runner Download: {{ 'Success' if runner_download.changed == false else 'Changed' }}
+          Directory Created: {{ 'Success' if directory_created.changed == false else 'Changed' }}
+          Runner Extracted: {{ 'Success' if extract_result.changed == false else 'Changed' }}
+          Runner Configured: {{ 'Success' if config_result.rc == 0 else 'Failed' }}
+          Service Installed: {{ 'Success' if service_install.rc == 0 else 'Failed' }}
+
+          ## Configuration Output
+          {{ config_result.stdout }}
+
+          ## Service Status
+          {{ service_status.stdout }}
+        dest: /opt/runner-diagnostics.txt
+        owner: azureuser
+        group: azureuser
+        mode: '0644'
