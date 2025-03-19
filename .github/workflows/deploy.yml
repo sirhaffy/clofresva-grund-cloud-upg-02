@@ -52,34 +52,22 @@ jobs:
             adminUsername=azureuser
             sshPublicKey="${{ secrets.SSH_PUBLIC_KEY }}"
             location=${{ env.LOCATION }}
+          deploymentName: main
 
       - name: Get Deployment Outputs
         run: |
           echo "Getting deployment outputs..."
-          BASTION_IP=$(az deployment group show \
+          DEPLOYMENT_OUTPUTS=$(az deployment group show \
             --resource-group ${{ env.RESOURCE_GROUP }} \
-            --name bastionDeployment \
-            --query properties.outputs.publicIp.value -o tsv)
+            --name "main" \
+            --query properties.outputs -o json)
 
-          PROXY_IP=$(az deployment group show \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --name reverseProxyDeployment \
-            --query properties.outputs.publicIp.value -o tsv)
-
-          APP_IP=$(az deployment group show \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --name appServerDeployment \
-            --query properties.outputs.privateIp.value -o tsv)
-
-          STORAGE_ACCOUNT=$(az deployment group show \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --name blobStorageDeployment \
-            --query properties.outputs.storageAccountName.value -o tsv)
-
-          BLOB_ENDPOINT=$(az deployment group show \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --name blobStorageDeployment \
-            --query properties.outputs.blobEndpoint.value -o tsv)
+          # Extract values from outputs
+          BASTION_IP=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.bastionHostIp.value')
+          PROXY_IP=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.reverseProxyIp.value')
+          APP_IP=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.appServerPrivateIp.value')
+          STORAGE_ACCOUNT=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.storageAccountName.value')
+          BLOB_ENDPOINT=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.blobEndpoint.value')
 
           # Set GitHub environment variables
           echo "BASTION_IP=$BASTION_IP" >> $GITHUB_ENV
