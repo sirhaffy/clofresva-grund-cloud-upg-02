@@ -9,7 +9,7 @@ env:
   PROJECT_NAME: ${{ secrets.PROJECT_NAME }}
   RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
   LOCATION: northeurope
-  GITHUB_REPO: ${{ secrets.GITHUB_REPO }}
+  REPO_GITHUB: ${{ secrets.REPO_GITHUB }}
   RUNNER_TOKEN: ${{ secrets.RUNNER_TOKEN }}
 
 jobs:
@@ -111,7 +111,7 @@ jobs:
               project_name: ${{ env.PROJECT_NAME }}
               storage_account: ${{ env.STORAGE_ACCOUNT }}
               blob_endpoint: ${{ env.BLOB_ENDPOINT }}
-              github_repo: ${{ env.GITHUB_REPO }}
+              REPO_GITHUB: ${{ env.REPO_GITHUB }}
               github_token: ${{ env.RUNNER_TOKEN }}
           EOF
 

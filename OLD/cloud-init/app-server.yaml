@@ -37,8 +37,8 @@
         After=network.target
 
         [Service]
-        WorkingDirectory=/opt/${github_repo_name}
-        ExecStart=/usr/bin/dotnet /opt/${github_repo_name}/${app_name}.dll
+        WorkingDirectory=/opt/${REPO_GITHUB_name}
+        ExecStart=/usr/bin/dotnet /opt/${REPO_GITHUB_name}/${app_name}.dll
         Restart=always
         RestartSec=10
         SyslogIdentifier=dotnet-app
@@ -69,7 +69,7 @@
         tar xzf ./actions-runner-linux-x64-2.322.0.tar.gz
 
         # Configure the runner
-        ./config.sh --url https://github.com/${github_org}/${github_repo_name} --token ${github_token} --unattended
+        ./config.sh --url https://github.com/${github_org}/${REPO_GITHUB_name} --token ${github_token} --unattended
 
         # Install as a service
         sudo ./svc.sh install
@@ -101,8 +101,8 @@
     - apt-get install -y aspnetcore-runtime-9.0
 
     # Create application directory
-    - mkdir -p /opt/${github_repo_name}
-    - chown -R azureuser:azureuser /opt/${github_repo_name}
+    - mkdir -p /opt/${REPO_GITHUB_name}
+    - chown -R azureuser:azureuser /opt/${REPO_GITHUB_name}
 
     # Run the GitHub runner setup script
     - chown azureuser:azureuser /home/azureuser/setup-runner.sh

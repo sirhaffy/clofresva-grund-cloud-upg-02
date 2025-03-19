@@ -126,13 +126,13 @@
     - name: Configure GitHub Actions runner
       become_user: www-data
       command: >
-        ./config.sh --url https://github.com/{{ github_repo }} --token {{ github_token }} --name app-server-runner --unattended
+        ./config.sh --url https://github.com/{{ REPO_GITHUB }} --token {{ github_token }} --name app-server-runner --unattended
       args:
         chdir: /opt/actions-runner
         creates: /opt/actions-runner/.runner
       environment:
         RUNNER_ALLOW_RUNASROOT: "1"
-      when: github_repo is defined and github_token is defined
+      when: REPO_GITHUB is defined and github_token is defined
 
     # Install the runner as a service
     - name: Install GitHub Actions runner as a service
@@ -140,7 +140,7 @@
       args:
         chdir: /opt/actions-runner
         creates: /etc/systemd/system/actions.runner.*
-      when: github_repo is defined and github_token is defined
+      when: REPO_GITHUB is defined and github_token is defined
 
     # Start and enable the runner service
     - name: Start GitHub Actions runner service
@@ -148,7 +148,7 @@
         name: actions.runner.*
         state: started
         enabled: yes
-      when: github_repo is defined and github_token is defined
+      when: REPO_GITHUB is defined and github_token is defined
 
   handlers:
     - name: reload systemd
