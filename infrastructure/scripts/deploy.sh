@@ -170,6 +170,9 @@ echo "SSH to bastion: ssh -i $SSH_KEY_PATH azureuser@$BASTION_IP"
 echo "=============================================="
 
 # Create dynamic inventory file for Ansible
+# Detta är bara det relevanta avsnittet i deploy.sh
+
+# Create dynamic inventory file for Ansible
 mkdir -p ./ansible/inventories
 cat > ./ansible/inventories/azure_rm.yml << EOF
 all:
@@ -180,7 +183,7 @@ all:
       ansible_ssh_private_key_file: ${SSH_KEY_PATH}
       ansible_ssh_common_args: '-o StrictHostKeyChecking=accept-new'
     reverse_proxy:
-      ansible_host: "${PROXY_PRIVATE_IP}"
+      ansible_host: "${PROXY_IP}"
       ansible_user: azureuser
       ansible_ssh_private_key_file: ${SSH_KEY_PATH}
       ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -o StrictHostKeyChecking=accept-new -i ${SSH_KEY_PATH} azureuser@${BASTION_IP}"'
@@ -193,8 +196,7 @@ all:
     project_name: "${PROJECT_NAME}"
     storage_account: "${STORAGE_ACCOUNT}"
     blob_endpoint: "${BLOB_ENDPOINT}"
-    public_proxy_ip: "${PROXY_IP}"
-    REPO_GITHUB: "${REPO_GITHUB}"
+    github_repo: "${GITHUB_REPO}"
     github_runner_token: "${RUNNER_TOKEN}"
 EOF
 

@@ -190,6 +190,10 @@ jobs:
           name: webapp
           path: /var/www/app
 
+      - name: Set proper permissions
+        run: |
+          sudo chown -R www-data:www-data /var/www/app
+
       - name: Restart App Service
         run: |
           sudo systemctl restart webapp.service

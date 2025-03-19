@@ -1,22 +1,23 @@
 all:
   hosts:
     bastion:
-      ansible_host: "137.116.232.168"
+      ansible_host: {{ BASTION_IP }}
       ansible_user: azureuser
-      ansible_ssh_private_key_file: /home/haffy/.ssh/clofresva_gc_upg02_azure_key
+      ansible_ssh_private_key_file: {{ SSH_KEY_PATH }}
       ansible_ssh_common_args: '-o StrictHostKeyChecking=accept-new'
     reverse_proxy:
-      ansible_host: "10.0.3.4"
+      ansible_host: {{ PROXY_IP }}
       ansible_user: azureuser
-      ansible_ssh_private_key_file: /home/haffy/.ssh/clofresva_gc_upg02_azure_key
-      ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -o StrictHostKeyChecking=accept-new -i /home/haffy/.ssh/clofresva_gc_upg02_azure_key azureuser@137.116.232.168"'
+      ansible_ssh_private_key_file: {{ SSH_KEY_PATH }}
+      ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -o StrictHostKeyChecking=accept-new -i {{ SSH_KEY_PATH }} azureuser@{{ BASTION_IP }}"'
     app_server:
-      ansible_host: "10.0.2.4"
+      ansible_host: {{ APP_IP }}
       ansible_user: azureuser
-      ansible_ssh_private_key_file: /home/haffy/.ssh/clofresva_gc_upg02_azure_key
-      ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -o StrictHostKeyChecking=accept-new -i /home/haffy/.ssh/clofresva_gc_upg02_azure_key azureuser@137.116.232.168"'
+      ansible_ssh_private_key_file: {{ SSH_KEY_PATH }}
+      ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -o StrictHostKeyChecking=accept-new -i {{ SSH_KEY_PATH }} azureuser@{{ BASTION_IP }}"'
   vars:
-    project_name: "clofresva-gc-upg02"
-    storage_account: "clofresvagcupg02storage"
-    blob_endpoint: "https://clofresvagcupg02storage.blob.core.windows.net/"
-    public_proxy_ip: "137.116.232.186"
+    project_name: {{ PROJECT_NAME }}
+    storage_account: {{ STORAGE_ACCOUNT }}
+    blob_endpoint: {{ BLOB_ENDPOINT }}
+    github_repo: {{ GITHUB_REPO }}
+    github_runner_token: {{ RUNNER_TOKEN }}

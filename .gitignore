@@ -10,6 +10,7 @@
 # Ignore temporary files
 temp/
 tmp/
+.ssh/*
 
 # Ignore generated parameters files with secrets
 parameters.json

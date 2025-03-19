@@ -134,3 +134,4 @@ Detta kör bara Ansible-delen för att konfigurera mjukvara och inställningar p
 
 Jag hade först byggt en lösning via den gamla tutorial-metoden med Azure CLI och hade som plan att göra ett gitrepo med Bicep och Cloud-Init som komplement. Men efter kursen med Ansible gjorde jag om hela lösningen, för jag vill ha det idempotent. 
 Jag fastnade ganska länge i deploy.sh skripet, som är det initiala skripet som sätter upp grunden för både infrastruktur (bicep) och configuration (ansible).
+Hade problem med att GH Actions väntade på att runnern skulle startas, men fick tips av Lars om att det kanske var fel användare. Det var nog inte hela problemet. Jag SSH:ade in i app-servern och kollade lite, den verkar inte ha slutfört installationen.

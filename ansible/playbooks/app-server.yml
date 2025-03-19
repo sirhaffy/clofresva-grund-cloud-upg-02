@@ -29,70 +29,51 @@
         owner: www-data
         group: www-data
 
-    # Configure storage settings
+    # Configure blob storage settings
     - name: Configure blob storage settings
-      copy:
+      template:
+        src: ../templates/appsettings.Production.json.j2
         dest: /var/www/app/appsettings.Production.json
-        content: |
-          {
-            "Logging": {
-              "LogLevel": {
-                "Default": "Information",
-                "Microsoft": "Warning",
-                "Microsoft.Hosting.Lifetime": "Information"
-              }
-            },
-            "AllowedHosts": "*",
-            "BlobStorage": {
-              "ConnectionString": "DefaultEndpointsProtocol=https;AccountName={{ storage_account }};EndpointSuffix=core.windows.net",
-              "ContainerName": "appdata",
-              "BlobEndpoint": "{{ blob_endpoint }}"
-            }
-          }
         owner: www-data
         group: www-data
         mode: '0644'
-      notify: restart app service
 
-    # Create a service file for the app
+    # Create web app service
     - name: Create app service file
-      copy:
+      template:
+        src: ../templates/webapp.service.j2
         dest: /etc/systemd/system/webapp.service
-        content: |
-          [Unit]
-          Description=.NET Web App
-          After=network.target
-
-          [Service]
-          WorkingDirectory=/var/www/app
-          ExecStart=/usr/bin/dotnet /var/www/app/WebbApp.dll
-          Restart=always
-          RestartSec=15
-          User=www-data
-          Group=www-data
-          Environment=ASPNETCORE_ENVIRONMENT=Production
-          Environment=ASPNETCORE_URLS=http://0.0.0.0:5000
-
-          [Install]
-          WantedBy=multi-user.target
+        owner: root
+        group: root
         mode: '0644'
-      notify: reload systemd
 
-    # Allow port 5000
+    # Open port for web service
     - name: Open port 5000 in firewall
       ufw:
         rule: allow
         port: '5000'
         proto: tcp
 
-    # GITHUB ACTIONS RUNNER SETUP
+    # GITHUB ACTIONS RUNNER SETUP - DETTA ÄR DEN VIKTIGA DELEN ATT FIXA
+    # Install required dependencies for GitHub Actions runner
+    - name: Install required dependencies for GitHub Actions runner
+      apt:
+        name:
+          - curl
+          - jq
+          - sudo
+          - tar
+          - git
+        state: present
+
+    # Download the GitHub Actions runner
     - name: Download GitHub Actions runner
       get_url:
         url: https://github.com/actions/runner/releases/download/v2.311.0/actions-runner-linux-x64-2.311.0.tar.gz
-        dest: /tmp/actions-runner.tar.gz
+        dest: /tmp/actions-runner-linux-x64-2.311.0.tar.gz
         mode: '0644'
 
-    # Create directory for GitHub Actions runner
+    # Create GitHub Actions runner directory
     - name: Create GitHub Actions runner directory
       file:
         path: /opt/actions-runner
@@ -101,48 +82,43 @@
         owner: azureuser
         group: azureuser
 
-    # Extract the runner package
+    # Extract GitHub Actions runner
     - name: Extract GitHub Actions runner
       unarchive:
-        src: /tmp/actions-runner.tar.gz
+        src: /tmp/actions-runner-linux-x64-2.311.0.tar.gz
         dest: /opt/actions-runner
         remote_src: yes
         owner: azureuser
         group: azureuser
+        mode: '0755'
 
-    # Configure the runner to connect to your GitHub repository
+    # Configure GitHub Actions runner
     - name: Configure GitHub Actions runner
       become: yes
       become_user: azureuser
-      command: >
+      shell: |
+        cd /opt/actions-runner
+        # Remove any existing runner configuration
+        if [ -f ".runner" ]; then
+          ./config.sh remove --token {{ github_runner_token }}
+        fi
+        # Configure the runner
         ./config.sh --url https://github.com/{{ github_repo }} --token {{ github_runner_token }} --name app-server-runner --labels self-hosted --unattended
       args:
-        chdir: /opt/actions-runner
+        executable: /bin/bash
         creates: /opt/actions-runner/.runner
 
-    # Install the runner as a service
+    # Install GitHub Actions runner as a service
     - name: Install GitHub Actions runner as a service
       become: yes
-      become_user: azureuser
-      command: ./svc.sh install azureuser
+      command: /opt/actions-runner/svc.sh install azureuser
       args:
-        chdir: /opt/actions-runner
         creates: /etc/systemd/system/actions.runner.*
 
-    # Enable and start the runner service
-    - name: Start GitHub Actions runner service
+    # Enable and start GitHub Actions runner service
+    - name: Enable GitHub Actions runner service
       systemd:
-        name: "actions.runner.*"
+        name: actions.runner.*
         state: started
         enabled: yes
-
-  handlers:
-    - name: reload systemd
-      systemd:
         daemon_reload: yes
-
-    - name: restart app service
-      systemd:
-        name: webapp.service
-        state: restarted
-        enabled: yes
