@@ -1,5 +1,5 @@
 #!/bin/bash
-# filepath: /home/haffy/Dev/clofresva-grund-cloud-upg-02/infrastructure/scripts/deploy.sh
+# filepath: d:\Dev\CloudDeveloper\06_Grund_Cloud\Inlamningsuppgift_02\infrastructure\scripts\deploy.sh
 
 # Source .env file if it exists
 if [ -f .env ]; then
@@ -38,35 +38,13 @@ fi
 # Read SSH public key
 SSH_PUBLIC_KEY=$(cat "${SSH_KEY_PATH}.pub")
 
-# Check for required tools
-if ! command -v jq &> /dev/null; then
-  echo "jq is required for parsing deployment outputs. Installing..."
-  sudo apt-get update && sudo apt-get install -y jq
-fi
-
 # Create resource group if it doesn't exist
 echo "Creating/updating resource group $RESOURCE_GROUP in $LOCATION..."
 az group create --name "$RESOURCE_GROUP" --location "$LOCATION"
 
-# Check if VM exists and remove existing extensions
-if az vm show --resource-group "$RESOURCE_GROUP" --name "${PROJECT_NAME}-app-server" &>/dev/null; then
-  echo "VM exists, removing any existing CustomScript extensions..."
-  # List all extensions
-  extensions=$(az vm extension list --resource-group "$RESOURCE_GROUP" --vm-name "${PROJECT_NAME}-app-server" --query "[?extensionType=='CustomScript'].name" -o tsv)
-
-  # Delete each extension
-  for ext in $extensions; do
-    echo "Removing extension: $ext"
-    az vm extension delete --resource-group "$RESOURCE_GROUP" --vm-name "${PROJECT_NAME}-app-server" --name "$ext"
-  done
-
-  echo "Waiting for extension deletion to complete..."
-  sleep 30
-fi
-
-# Deploy Bicep template
-echo "Deploying infrastructure with Bicep..."
-az deployment group create \
+# Visa vad som kommer göras, men utan disk-checks
+echo "Checking what changes would be made to infrastructure..."
+az deployment group what-if \
   --resource-group "$RESOURCE_GROUP" \
   --name "main" \
   --template-file ./infrastructure/bicep/main.bicep \
@@ -74,6 +52,24 @@ az deployment group create \
   --parameters adminUsername=azureuser \
   --parameters "sshPublicKey=$SSH_PUBLIC_KEY" \
   --parameters location="$LOCATION"
+
+read -p "Do you want to apply these changes? (y/n) " APPLY_CHANGES
+
+if [[ $APPLY_CHANGES == "y" ]]; then
+  echo "Deploying infrastructure with Bicep (incremental mode)..."
+  az deployment group create \
+    --resource-group "$RESOURCE_GROUP" \
+    --name "main" \
+    --template-file ./infrastructure/bicep/main.bicep \
+    --parameters projectName="$PROJECT_NAME" \
+    --parameters adminUsername=azureuser \
+    --parameters "sshPublicKey=$SSH_PUBLIC_KEY" \
+    --parameters location="$LOCATION" \
+    --mode Incremental
+else
+  echo "Deployment cancelled."
+  exit 0
+fi
 
 # Check if deployment succeeded
 if [ "$?" -ne 0 ]; then
@@ -83,7 +79,6 @@ fi
 
 # Get deployment outputs
 echo "Getting deployment outputs..."
-
 DEPLOYMENT_OUTPUTS=$(az deployment group show \
   --resource-group "$RESOURCE_GROUP" \
   --name "main" \
@@ -97,16 +92,74 @@ fi
 # Extract values from outputs
 BASTION_IP=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.bastionHostIp.value')
 PROXY_IP=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.reverseProxyIp.value')
-APP_IP=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.appServerPrivateIp.value')
 STORAGE_ACCOUNT=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.storageAccountName.value')
 BLOB_ENDPOINT=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.blobEndpoint.value')
+APP_PRIVATE_IP=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.appServerPrivateIp.value')
+PROXY_PRIVATE_IP=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.reverseProxyPrivateIp.value')
 
 # Update .env file with these values
 sed -i "s/^BASTION_IP=.*/BASTION_IP=$BASTION_IP/" .env
 sed -i "s/^PROXY_IP=.*/PROXY_IP=$PROXY_IP/" .env
-sed -i "s/^APP_IP=.*/APP_IP=$APP_IP/" .env
 sed -i "s/^STORAGE_ACCOUNT=.*/STORAGE_ACCOUNT=$STORAGE_ACCOUNT/" .env
 sed -i "s|^BLOB_ENDPOINT=.*|BLOB_ENDPOINT=$BLOB_ENDPOINT|" .env
+sed -i "s/^APP_PRIVATE_IP=.*/APP_PRIVATE_IP=$APP_PRIVATE_IP/" .env
+sed -i "s/^PROXY_PRIVATE_IP=.*/PROXY_PRIVATE_IP=$PROXY_PRIVATE_IP/" .env
+
+# Funktion för att rensa SSH known_hosts och hantera nya nycklar
+prepare_ssh_connections() {
+  local bastion_ip="$1"
+  local app_ip="$2"
+  local proxy_ip="$3"
+
+  echo "Preparing SSH connections by cleaning known hosts..."
+
+  # Ta bort eventuella tidigare SSH-nycklar för VM-IP-adresser
+  ssh-keygen -f "$HOME/.ssh/known_hosts" -R "$bastion_ip" 2>/dev/null || true
+  ssh-keygen -f "$HOME/.ssh/known_hosts" -R "$app_ip" 2>/dev/null || true
+  ssh-keygen -f "$HOME/.ssh/known_hosts" -R "$proxy_ip" 2>/dev/null || true
+
+  # Lägg till StrictHostKeyChecking=no i SSH-konfigurationen för dessa hosts
+  mkdir -p "$HOME/.ssh"
+  cat > "$HOME/.ssh/config" << EOF
+Host $bastion_ip
+  StrictHostKeyChecking accept-new
+
+Host $app_ip
+  StrictHostKeyChecking accept-new
+  ProxyCommand ssh -W %h:%p $bastion_ip
+
+Host $proxy_ip
+  StrictHostKeyChecking accept-new
+  ProxyCommand ssh -W %h:%p $bastion_ip
+EOF
+
+  chmod 600 "$HOME/.ssh/config"
+
+  echo "SSH configuration updated."
+}
+
+# Funktion för att vänta på SSH-tillgänglighet
+wait_for_ssh() {
+  local host=$1
+  local max_attempts=30
+  local attempt=0
+
+  echo "Waiting for SSH on $host..."
+
+  while [ $attempt -lt $max_attempts ]; do
+    if ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new -o BatchMode=yes -i "$SSH_KEY_PATH" azureuser@"$host" exit 2>/dev/null; then
+      echo "SSH connection to $host established."
+      return 0
+    fi
+
+    attempt=$((attempt+1))
+    echo "Attempt $attempt/$max_attempts failed. Waiting 10 seconds..."
+    sleep 10
+  done
+
+  echo "Failed to connect to $host after $max_attempts attempts."
+  return 1
+}
 
 # Display deployment information
 echo "=============================================="
@@ -125,19 +178,22 @@ all:
       ansible_host: "${BASTION_IP}"
       ansible_user: azureuser
       ansible_ssh_private_key_file: ${SSH_KEY_PATH}
+      ansible_ssh_common_args: '-o StrictHostKeyChecking=accept-new'
     reverse_proxy:
-      ansible_host: "${PROXY_IP}"
+      ansible_host: "${PROXY_PRIVATE_IP}"
       ansible_user: azureuser
       ansible_ssh_private_key_file: ${SSH_KEY_PATH}
+      ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -o StrictHostKeyChecking=accept-new -i ${SSH_KEY_PATH} azureuser@${BASTION_IP}"'
     app_server:
-      ansible_host: "${APP_IP}"
+      ansible_host: "${APP_PRIVATE_IP}"
       ansible_user: azureuser
       ansible_ssh_private_key_file: ${SSH_KEY_PATH}
-      ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -i ${SSH_KEY_PATH} azureuser@${BASTION_IP}"'
+      ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -o StrictHostKeyChecking=accept-new -i ${SSH_KEY_PATH} azureuser@${BASTION_IP}"'
   vars:
     project_name: "${PROJECT_NAME}"
     storage_account: "${STORAGE_ACCOUNT}"
     blob_endpoint: "${BLOB_ENDPOINT}"
+    public_proxy_ip: "${PROXY_IP}"
 EOF
 
 # Ask to run Ansible playbooks
@@ -146,12 +202,32 @@ read -p "Run Ansible playbooks now? (y/n) " RUN_ANSIBLE
 if [[ $RUN_ANSIBLE == "y" ]]; then
   echo "Running Ansible playbooks"
 
-  # Wait for SSH to be ready
-  echo "Waiting for SSH connections to be ready..."
-  sleep 30
+  # Förbered SSH-anslutningar för att undvika host key-verifieringsproblem
+  prepare_ssh_connections "$BASTION_IP" "$APP_PRIVATE_IP" "$PROXY_PRIVATE_IP"
+
+  # Vänta på att SSH ska vara tillgängligt innan Ansible körs
+  if ! wait_for_ssh "$BASTION_IP"; then
+    echo "ERROR: Could not establish SSH connection to bastion host."
+    echo "Please check your deployment and try running Ansible manually."
+    exit 1
+  fi
+
+  # Kontrollera om ansible-playbook finns tillgängligt
+  if ! command -v ansible-playbook &> /dev/null; then
+    echo "ansible-playbook not found. Please install Ansible and try again."
+    echo "You can install it with: sudo apt install -y ansible"
+    echo "Then run Ansible manually with: ansible-playbook -i ./ansible/inventories/azure_rm.yml ./ansible/playbooks/site.yml"
+    exit 1
+  fi
+
+  # Skapa eller uppdatera ansible.cfg
+  cat > ./ansible/ansible.cfg << EOF
+[defaults]
+host_key_checking = False
+EOF
 
   # Run the playbooks
-  ansible-playbook -i ./ansible/inventories/azure_rm.yml ./ansible/playbooks/site.yml
+  ANSIBLE_CONFIG=./ansible/ansible.cfg ansible-playbook -i ./ansible/inventories/azure_rm.yml ./ansible/playbooks/site.yml
 else
   echo "Skipping Ansible playbooks. You can run them later with:"
   echo "ansible-playbook -i ./ansible/inventories/azure_rm.yml ./ansible/playbooks/site.yml"

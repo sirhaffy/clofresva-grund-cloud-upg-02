@@ -2,6 +2,12 @@ param location string
 param projectName string
 param vnetName string = '${projectName}-vnet'
 
+// Nätverkskonfiguration
+param vnetAddressPrefix string
+param bastionSubnetPrefix string
+param appServerSubnetPrefix string
+param reverseProxySubnetPrefix string
+
 // Application Security Groups
 resource bastionASG 'Microsoft.Network/applicationSecurityGroups@2021-05-01' = {
   name: '${projectName}-bastion-asg'
@@ -145,14 +151,14 @@ resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
   properties: {
     addressSpace: {
       addressPrefixes: [
-        '10.0.0.0/16'
+        vnetAddressPrefix
       ]
     }
     subnets: [
       {
         name: 'BastionSubnet'
         properties: {
-          addressPrefix: '10.0.1.0/24'
+          addressPrefix: bastionSubnetPrefix
           networkSecurityGroup: {
             id: bastionNSG.id
           }
@@ -161,7 +167,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
       {
         name: 'AppServerSubnet'
         properties: {
-          addressPrefix: '10.0.2.0/24'
+          addressPrefix: appServerSubnetPrefix
           networkSecurityGroup: {
             id: appServerNSG.id
           }
@@ -170,7 +176,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
       {
         name: 'ReverseProxySubnet'
         properties: {
-          addressPrefix: '10.0.3.0/24'
+          addressPrefix: reverseProxySubnetPrefix
           networkSecurityGroup: {
             id: reverseProxyNSG.id
           }

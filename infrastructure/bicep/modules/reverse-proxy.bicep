@@ -1,83 +1,53 @@
 param location string = resourceGroup().location
-param reverseProxyName string
+param appServerName string
 param subnetId string
 param adminUsername string
+param asgId string
 @secure()
 param sshPublicKey string
 
-// Create a public IP for the reverse proxy
+// Create public IP address for App Server - ALLTID STATIC
 resource publicIp 'Microsoft.Network/publicIPAddresses@2021-05-01' = {
-  name: '${reverseProxyName}-ip'
+  name: '${appServerName}-public-ip'
   location: location
   properties: {
     publicIPAllocationMethod: 'Static'
+    dnsSettings: {
+      domainNameLabel: toLower(appServerName)
+    }
   }
 }
 
-// Create a Network Security Group for the reverse proxy
-resource proxyNsg 'Microsoft.Network/networkSecurityGroups@2021-05-01' = {
-  name: '${reverseProxyName}-nsg'
-  location: location
-  properties: {
-    securityRules: [
-      {
-        name: 'Allow-HTTP'
-        properties: {
-          priority: 100
-          protocol: 'Tcp'
-          sourcePortRange: '*'
-          destinationPortRange: '80'
-          sourceAddressPrefix: '*'
-          destinationAddressPrefix: '*'
-          access: 'Allow'
-          direction: 'Inbound'
-        }
-      }
-      {
-        name: 'Allow-SSH-From-Bastion'
-        properties: {
-          priority: 110
-          protocol: 'Tcp'
-          sourcePortRange: '*'
-          destinationPortRange: '22'
-          sourceAddressPrefix: '10.0.1.0/24'
-          destinationAddressPrefix: '*'
-          access: 'Allow'
-          direction: 'Inbound'
-        }
-      }
-    ]
-  }
-}
-
-// Create the Network Interface for the reverse proxy
-resource proxyNic 'Microsoft.Network/networkInterfaces@2021-05-01' = {
-  name: '${reverseProxyName}-nic'
+// Create network interface for App Server
+resource appNic 'Microsoft.Network/networkInterfaces@2021-05-01' = {
+  name: '${appServerName}-nic'
   location: location
   properties: {
     ipConfigurations: [
       {
         name: 'ipconfig1'
         properties: {
+          privateIPAllocationMethod: 'Dynamic'
           subnet: {
             id: subnetId
           }
-          privateIPAllocationMethod: 'Dynamic'
           publicIPAddress: {
             id: publicIp.id
           }
+          applicationSecurityGroups: [
+            {
+              id: asgId
+            }
+          ]
         }
       }
     ]
-    networkSecurityGroup: {
-      id: proxyNsg.id
-    }
   }
 }
 
-// Create the reverse proxy VM
-resource proxyVM 'Microsoft.Compute/virtualMachines@2021-07-01' = {
-  name: reverseProxyName
+// Create the app server VM
+resource appServerVM 'Microsoft.Compute/virtualMachines@2021-07-01' = {
+  name: appServerName
   location: location
   properties: {
     hardwareProfile: {
@@ -95,10 +65,11 @@ resource proxyVM 'Microsoft.Compute/virtualMachines@2021-07-01' = {
         managedDisk: {
           storageAccountType: 'Standard_LRS'
         }
+        // Ta bort diskSizeGB helt - låt Azure använda default
       }
     }
     osProfile: {
-      computerName: reverseProxyName
+      computerName: appServerName
       adminUsername: adminUsername
       linuxConfiguration: {
         disablePasswordAuthentication: true
@@ -115,14 +86,14 @@ resource proxyVM 'Microsoft.Compute/virtualMachines@2021-07-01' = {
     networkProfile: {
       networkInterfaces: [
         {
-          id: proxyNic.id
+          id: appNic.id
         }
       ]
     }
   }
 }
 
-// Output the public IP address for access
-output publicIp string = publicIp.properties.ipAddress
-output privateIp string = proxyNic.properties.ipConfigurations[0].properties.privateIPAddress
-output vmId string = proxyVM.id
+// Outputs
+output vmId string = appServerVM.id
+output privateIp string = appNic.properties.ipConfigurations[0].properties.privateIPAddress
+output publicIpAddress string = publicIp.properties.ipAddress

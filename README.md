@@ -107,3 +107,10 @@ This project provides a comprehensive solution for deploying a secure and scalab
 
 
 
+Fas 1: Grundläggande infrastruktur (körs en gång)
+Denna fas skapar alla Azure-resurser inklusive VMs, nätverksresurser, etc.
+Körs i början av projektet för att sätta upp grundläggande infrastruktur
+
+Fas 2: Konfigurationshantering (körs vid behov)
+Ansible hanterar konfiguration och applikationsdistribution
+Kan köras när som helst för att uppdatera konfiguration utan att röra infrastrukturen

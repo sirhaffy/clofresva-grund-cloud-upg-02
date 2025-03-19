@@ -1,88 +1,80 @@
-@description('Base name to use for resources')
 param projectName string
-
-@description('Location for all resources')
 param location string = resourceGroup().location
-
-@description('Admin username for VMs')
-param adminUsername string
-
-@description('SSH public key for VMs')
+param adminUsername string = 'azureuser'
 @secure()
 param sshPublicKey string
 
-// Naming convention
-var vnetName = '${projectName}-vnet'
-var bastionName = '${projectName}-bastion'
-var appServerName = '${projectName}-appserver'
-var reverseProxyName = '${projectName}-proxy'
+// Nätverkskonfiguration - definiera allt centralt
+param vnetAddressPrefix string = '10.0.0.0/16'
+param bastionSubnetPrefix string = '10.0.1.0/24'
+param appServerSubnetPrefix string = '10.0.2.0/24'
+param reverseProxySubnetPrefix string = '10.0.3.0/24'
 
-// Network setup
-module network './modules/network.bicep' = {
+// Network Module
+module networkModule './modules/network.bicep' = {
   name: 'networkDeployment'
   params: {
     location: location
     projectName: projectName
+    vnetName: '${projectName}-vnet'
+    vnetAddressPrefix: vnetAddressPrefix
+    bastionSubnetPrefix: bastionSubnetPrefix
+    appServerSubnetPrefix: appServerSubnetPrefix
+    reverseProxySubnetPrefix: reverseProxySubnetPrefix
   }
 }
 
-// Blob Storage
-module blobStorage './modules/blobstorage.bicep' = {
-  name: 'blobStorageDeployment'
-  params: {
-    projectName: projectName
-    location: location
-  }
-}
-
-// Bastion host
+// Bastion host module
 module bastionHost './modules/bastion.bicep' = {
-  name: 'bastionDeployment'
+  name: 'bastionHostDeployment'
   params: {
     location: location
-    bastionName: bastionName
+    bastionName: '${projectName}-bastion'
+    subnetId: networkModule.outputs.bastionSubnetId
     adminUsername: adminUsername
     sshPublicKey: sshPublicKey
-    subnetId: resourceId('Microsoft.Network/virtualNetworks/subnets', vnetName, 'BastionSubnet')
   }
-  dependsOn: [
-    network
-  ]
 }
 
-// App server
+// App Server Module
 module appServer './modules/app-server.bicep' = {
   name: 'appServerDeployment'
   params: {
-    appServerName: appServerName
     location: location
+    appServerName: '${projectName}-appserver'
+    subnetId: networkModule.outputs.appServerSubnetId
     adminUsername: adminUsername
     sshPublicKey: sshPublicKey
-    subnetId: resourceId('Microsoft.Network/virtualNetworks/subnets', vnetName, 'AppServerSubnet')
+    asgId: networkModule.outputs.appServerASGId
   }
-  dependsOn: [
-    network
-  ]
 }
 
-// Reverse proxy
+// Reverse Proxy Module
 module reverseProxy './modules/reverse-proxy.bicep' = {
   name: 'reverseProxyDeployment'
   params: {
-    reverseProxyName: reverseProxyName
     location: location
+    appServerName: '${projectName}-reverse-proxy'
+    subnetId: networkModule.outputs.reverseProxySubnetId
     adminUsername: adminUsername
     sshPublicKey: sshPublicKey
-    subnetId: resourceId('Microsoft.Network/virtualNetworks/subnets', vnetName, 'ReverseProxySubnet')
+    asgId: networkModule.outputs.reverseProxyASGId
   }
-  dependsOn: [
-    network
-  ]
 }
 
-// Output important information
-output bastionHostIp string = bastionHost.outputs.publicIp
-output reverseProxyIp string = reverseProxy.outputs.publicIp
+// Storage Module
+module storageModule './modules/blobstorage.bicep' = {
+  name: 'storageDeployment'
+  params: {
+    location: location
+    projectName: projectName
+  }
+}
+
+// Outputs
+output bastionHostIp string = bastionHost.outputs.publicIpAddress
+output reverseProxyIp string = reverseProxy.outputs.publicIpAddress
 output appServerPrivateIp string = appServer.outputs.privateIp
-output storageAccountName string = blobStorage.outputs.storageAccountName
-output blobEndpoint string = blobStorage.outputs.blobEndpoint
+output reverseProxyPrivateIp string = reverseProxy.outputs.privateIp
+output storageAccountName string = storageModule.outputs.storageAccountName
+output blobEndpoint string = storageModule.outputs.blobEndpoint

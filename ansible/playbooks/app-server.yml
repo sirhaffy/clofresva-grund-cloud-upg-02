@@ -2,30 +2,22 @@
   hosts: app_server
   become: yes
   tasks:
-    - name: Install .NET repository
+    - name: Add .NET backports repository
       apt_repository:
-        repo: "deb https://packages.microsoft.com/ubuntu/24.04/prod lunar main"
+        repo: "ppa:dotnet/backports"
         state: present
-        filename: microsoft-dotnet
       when: ansible_os_family == "Debian"
 
-    - name: Install .NET SDK
+    - name: Update apt cache
       apt:
-        name: dotnet-sdk-9.0
-        state: present
         update_cache: yes
       when: ansible_os_family == "Debian"
 
-    - name: Install dependencies for GitHub Actions Runner
+    - name: Install ASP.NET Core Runtime
       apt:
-        name:
-          - curl
-          - sudo
-          - unzip
-          - wget
-          - jq
-          - git
-        update_cache: yes
+        name: aspnetcore-runtime-9.0
+        state: present
+      when: ansible_os_family == "Debian"
 
     # Create app directory
     - name: Create app directory

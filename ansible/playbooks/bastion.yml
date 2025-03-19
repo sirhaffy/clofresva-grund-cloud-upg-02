@@ -1,21 +1,30 @@
-- hosts: bastion
+---
+- name: Ensure the bastion host is installed
+  hosts: bastion
   become: yes
   tasks:
-    - name: Ensure the bastion host is installed
+    - name: Update apt cache
       apt:
-        name: "{{ item }}"
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - python3-pip
+          - python3-venv
+          - nginx
+          - net-tools
         state: present
-      loop:
-        - openssh-server
-        - ufw
 
     - name: Allow SSH and custom port for bastion
       ufw:
         rule: allow
-        name: "{{ item }}"
+        port: '{{ item }}'
+        proto: tcp
       loop:
-        - '22'
-        - '2222'
+        - "22"
+        - "2222"
 
     - name: Enable UFW
       ufw:
@@ -27,28 +36,31 @@
         state: started
         enabled: yes
 
-    - name: Create a user for SSH access
-      user:
-        name: azureuser
-        shell: /bin/bash
-        create_home: yes
-        state: present
-
     - name: Set authorized key for azureuser
       authorized_key:
         user: azureuser
         state: present
-        key: "{{ lookup('file', '/path/to/your/public/key.pub') }}"  # Update with the correct path to your public key
+        key: "{{ lookup('file', ansible_ssh_private_key_file + '.pub') }}"
 
-    - name: Ensure the bastion host is configured for public access
+    - name: Configure SSH to listen on both ports 22 and 2222
       lineinfile:
         path: /etc/ssh/sshd_config
-        regexp: '^#?Port '
-        line: 'Port 2222'
-      notify: Restart SSH
+        line: "{{ item }}"
+        state: present
+      loop:
+        - "Port 22"
+        - "Port 2222"
+      notify: restart sshd
+
+    - name: Create a sentinel file to mark setup as completed
+      file:
+        path: /etc/ansible_configured
+        state: touch
+        mode: '0644'
+      changed_when: false
 
   handlers:
-    - name: Restart SSH
+    - name: restart sshd
       service:
         name: ssh
         state: restarted
