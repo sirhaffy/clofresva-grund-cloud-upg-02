@@ -1,0 +1,48 @@
+- name: Ensure .NET 9 is installed
+  apt:
+    name: dotnet-sdk-9.0
+    state: present
+
+- name: Create app server directory
+  file:
+    path: /var/www/app
+    state: directory
+
+- name: Deploy application files
+  template:
+    src: app-service.j2
+    dest: /var/www/app/app.service
+
+- name: Enable and start the app service
+  systemd:
+    name: app.service
+    enabled: yes
+    state: started
+
+- name: Open port 5000 in the NSG
+  azure_rm_networksecuritygroup:
+    resource_group: "{{ resource_group }}"
+    name: "{{ nsg_name }}"
+    security_rules:
+      - name: AllowAppServer5000
+        protocol: Tcp
+        destination_port_range: 5000
+        source_address_prefix: "{{ reverse_proxy_subnet }}"
+        destination_address_prefix: "*"
+        access: Allow
+        priority: 100
+        direction: Inbound
+
+- name: Open port 22 in the NSG for Bastion
+  azure_rm_networksecuritygroup:
+    resource_group: "{{ resource_group }}"
+    name: "{{ nsg_name }}"
+    security_rules:
+      - name: AllowSSHFromBastion
+        protocol: Tcp
+        destination_port_range: 22
+        source_address_prefix: "{{ bastion_subnet }}"
+        destination_address_prefix: "*"
+        access: Allow
+        priority: 110
+        direction: Inbound

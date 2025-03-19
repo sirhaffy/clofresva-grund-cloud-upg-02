@@ -1,0 +1,158 @@
+- name: Configure App Server
+  hosts: app_server
+  become: yes
+  tasks:
+    - name: Install .NET repository
+      apt_repository:
+        repo: "deb https://packages.microsoft.com/ubuntu/24.04/prod lunar main"
+        state: present
+        filename: microsoft-dotnet
+      when: ansible_os_family == "Debian"
+
+    - name: Install .NET SDK
+      apt:
+        name: dotnet-sdk-9.0
+        state: present
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Install dependencies for GitHub Actions Runner
+      apt:
+        name:
+          - curl
+          - sudo
+          - unzip
+          - wget
+          - jq
+          - git
+        update_cache: yes
+
+    # Create app directory
+    - name: Create app directory
+      file:
+        path: /var/www/app
+        state: directory
+        mode: '0755'
+        owner: www-data
+        group: www-data
+
+    # Configure storage settings
+    - name: Configure blob storage settings
+      copy:
+        dest: /var/www/app/appsettings.Production.json
+        content: |
+          {
+            "Logging": {
+              "LogLevel": {
+                "Default": "Information",
+                "Microsoft": "Warning",
+                "Microsoft.Hosting.Lifetime": "Information"
+              }
+            },
+            "AllowedHosts": "*",
+            "BlobStorage": {
+              "ConnectionString": "DefaultEndpointsProtocol=https;AccountName={{ storage_account }};EndpointSuffix=core.windows.net",
+              "ContainerName": "appdata",
+              "BlobEndpoint": "{{ blob_endpoint }}"
+            }
+          }
+        owner: www-data
+        group: www-data
+        mode: '0644'
+      notify: restart app service
+
+    # Create a service file for the app
+    - name: Create app service file
+      copy:
+        dest: /etc/systemd/system/webapp.service
+        content: |
+          [Unit]
+          Description=.NET Web App
+          After=network.target
+
+          [Service]
+          WorkingDirectory=/var/www/app
+          ExecStart=/usr/bin/dotnet /var/www/app/WebbApp.dll
+          Restart=always
+          RestartSec=10
+          User=www-data
+          Group=www-data
+          Environment=ASPNETCORE_ENVIRONMENT=Production
+          Environment=ASPNETCORE_URLS=http://0.0.0.0:5000
+
+          [Install]
+          WantedBy=multi-user.target
+        mode: '0644'
+      notify: reload systemd
+
+    # Allow port 5000
+    - name: Open port 5000 in firewall
+      ufw:
+        rule: allow
+        port: '5000'
+        proto: tcp
+
+    # GITHUB ACTIONS RUNNER SETUP
+    # Download the GitHub Actions runner package
+    - name: Download GitHub Actions runner
+      get_url:
+        url: https://github.com/actions/runner/releases/download/v2.311.0/actions-runner-linux-x64-2.311.0.tar.gz
+        dest: /tmp/actions-runner.tar.gz
+        mode: '0644'
+
+    # Create directory for GitHub Actions runner
+    - name: Create GitHub Actions runner directory
+      file:
+        path: /opt/actions-runner
+        state: directory
+        mode: '0755'
+        owner: www-data
+        group: www-data
+
+    # Extract the runner package
+    - name: Extract GitHub Actions runner
+      unarchive:
+        src: /tmp/actions-runner.tar.gz
+        dest: /opt/actions-runner
+        remote_src: yes
+        owner: www-data
+        group: www-data
+
+    # Configure the runner to connect to your GitHub repository
+    - name: Configure GitHub Actions runner
+      become_user: www-data
+      command: >
+        ./config.sh --url https://github.com/{{ github_repo }} --token {{ github_token }} --name app-server-runner --unattended
+      args:
+        chdir: /opt/actions-runner
+        creates: /opt/actions-runner/.runner
+      environment:
+        RUNNER_ALLOW_RUNASROOT: "1"
+      when: github_repo is defined and github_token is defined
+
+    # Install the runner as a service
+    - name: Install GitHub Actions runner as a service
+      command: ./svc.sh install
+      args:
+        chdir: /opt/actions-runner
+        creates: /etc/systemd/system/actions.runner.*
+      when: github_repo is defined and github_token is defined
+
+    # Start and enable the runner service
+    - name: Start GitHub Actions runner service
+      systemd:
+        name: actions.runner.*
+        state: started
+        enabled: yes
+      when: github_repo is defined and github_token is defined
+
+  handlers:
+    - name: reload systemd
+      systemd:
+        daemon_reload: yes
+
+    - name: restart app service
+      systemd:
+        name: webapp.service
+        state: restarted
+        enabled: yes

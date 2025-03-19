@@ -1,0 +1,164 @@
+name: Deploy Infrastructure and Application
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  PROJECT_NAME: ${{ secrets.PROJECT_NAME }}
+  RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
+  LOCATION: northeurope
+  GITHUB_REPO: ${{ secrets.GITHUB_REPO }}
+  RUNNER_TOKEN: ${{ secrets.RUNNER_TOKEN }}
+
+jobs:
+  deploy-infrastructure:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set up SSH keys
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_clofresvagcupg02
+          chmod 600 ~/.ssh/id_clofresvagcupg02
+          ssh-keygen -y -f ~/.ssh/id_clofresvagcupg02 > ~/.ssh/id_clofresvagcupg02.pub
+
+          # Disable strict host key checking
+          cat > ~/.ssh/config << EOF
+          Host *
+            StrictHostKeyChecking no
+            UserKnownHostsFile=/dev/null
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Deploy Infrastructure
+        id: deploy
+        uses: azure/arm-deploy@v1
+        with:
+          scope: resourceGroup
+          resourceGroupName: ${{ env.RESOURCE_GROUP }}
+          template: ./infrastructure/bicep/main.bicep
+          parameters: >
+            projectName=${{ env.PROJECT_NAME }}
+            adminUsername=azureuser
+            sshPublicKey="${{ secrets.SSH_PUBLIC_KEY }}"
+            location=${{ env.LOCATION }}
+
+      - name: Get Deployment Outputs
+        run: |
+          echo "Getting deployment outputs..."
+          BASTION_IP=$(az deployment group show \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name bastionDeployment \
+            --query properties.outputs.publicIp.value -o tsv)
+
+          PROXY_IP=$(az deployment group show \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name reverseProxyDeployment \
+            --query properties.outputs.publicIp.value -o tsv)
+
+          APP_IP=$(az deployment group show \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name appServerDeployment \
+            --query properties.outputs.privateIp.value -o tsv)
+
+          STORAGE_ACCOUNT=$(az deployment group show \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name blobStorageDeployment \
+            --query properties.outputs.storageAccountName.value -o tsv)
+
+          BLOB_ENDPOINT=$(az deployment group show \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name blobStorageDeployment \
+            --query properties.outputs.blobEndpoint.value -o tsv)
+
+          # Set GitHub environment variables
+          echo "BASTION_IP=$BASTION_IP" >> $GITHUB_ENV
+          echo "PROXY_IP=$PROXY_IP" >> $GITHUB_ENV
+          echo "APP_IP=$APP_IP" >> $GITHUB_ENV
+          echo "STORAGE_ACCOUNT=$STORAGE_ACCOUNT" >> $GITHUB_ENV
+          echo "BLOB_ENDPOINT=$BLOB_ENDPOINT" >> $GITHUB_ENV
+
+      - name: Create Ansible Inventory
+        run: |
+          mkdir -p ./ansible/inventories
+          cat > ./ansible/inventories/azure_rm.yml << EOF
+          all:
+            hosts:
+              bastion:
+                ansible_host: ${{ env.BASTION_IP }}
+                ansible_user: azureuser
+                ansible_ssh_private_key_file: ~/.ssh/id_clofresvagcupg02
+              reverse_proxy:
+                ansible_host: ${{ env.PROXY_IP }}
+                ansible_user: azureuser
+                ansible_ssh_private_key_file: ~/.ssh/id_clofresvagcupg02
+              app_server:
+                ansible_host: ${{ env.APP_IP }}
+                ansible_user: azureuser
+                ansible_ssh_private_key_file: ~/.ssh/id_clofresvagcupg02
+                ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.BASTION_IP }}"'
+            vars:
+              project_name: ${{ env.PROJECT_NAME }}
+              storage_account: ${{ env.STORAGE_ACCOUNT }}
+              blob_endpoint: ${{ env.BLOB_ENDPOINT }}
+              github_repo: ${{ env.GITHUB_REPO }}
+              github_token: ${{ env.RUNNER_TOKEN }}
+          EOF
+
+      - name: Install Ansible
+        run: |
+          sudo apt update
+          sudo apt install -y ansible
+
+      - name: Wait for SSH Service
+        run: |
+          echo "Waiting for SSH to be available..."
+          sleep 60
+
+          for i in {1..10}; do
+            if nc -z -w5 ${{ env.BASTION_IP }} 22; then
+              echo "SSH is ready!"
+              break
+            fi
+            echo "Waiting for SSH... attempt $i/10"
+            sleep 30
+          done
+
+      - name: Run Ansible Playbooks
+        run: |
+          ansible-playbook -i ./ansible/inventories/azure_rm.yml ./ansible/playbooks/site.yml -v
+
+      - name: Build Web App
+        run: |
+          dotnet publish ./WebbApp/WebbApp.csproj -c Release -o ./publish
+
+      - name: Upload App Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: webapp
+          path: ./publish
+
+  deploy-app:
+    name: Deploy Application
+    needs: deploy-infrastructure
+    runs-on: self-hosted
+    steps:
+      - name: Download App Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: webapp
+          path: /var/www/app
+
+      - name: Restart App Service
+        run: |
+          sudo systemctl restart webapp.service

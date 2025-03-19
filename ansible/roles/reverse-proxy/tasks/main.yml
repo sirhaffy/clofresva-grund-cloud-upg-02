@@ -1,0 +1,38 @@
+- name: Install Nginx
+  apt:
+    name: nginx
+    state: present
+
+- name: Start Nginx service
+  service:
+    name: nginx
+    state: started
+    enabled: yes
+
+- name: Configure Nginx
+  template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/sites-available/default
+
+- name: Ensure Nginx is reloaded
+  command: systemctl reload nginx
+
+- name: Open port 80 in the firewall
+  ufw:
+    rule: allow
+    name: 'Nginx HTTP'
+    state: enabled
+
+- name: Open port 22 from bastion server
+  ufw:
+    rule: allow
+    from_ip: "{{ bastion_ip }}"
+    port: 22
+    proto: tcp
+
+- name: Open port 5000 from reverse proxy to app server
+  ufw:
+    rule: allow
+    from_ip: "{{ reverse_proxy_ip }}"
+    port: 5000
+    proto: tcp

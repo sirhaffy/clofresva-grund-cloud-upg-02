@@ -1,0 +1,30 @@
+# app-service.j2
+
+# This Jinja2 template defines the configuration for the app service.
+
+{
+  "name": "{{ app_service_name }}",
+  "location": "{{ location }}",
+  "properties": {
+    "sku": {
+      "name": "S1",
+      "tier": "Standard",
+      "capacity": 1
+    },
+    "kind": "app",
+    "siteConfig": {
+      "appSettings": [
+        {
+          "name": "WEBSITE_RUN_FROM_PACKAGE",
+          "value": "1"
+        },
+        {
+          "name": "DOTNET_VERSION",
+          "value": "9.0"
+        }
+      ],
+      "linuxFxVersion": "DOTNET|9.0"
+    },
+    "httpsOnly": true
+  }
+}

@@ -1,0 +1,63 @@
+---
+- name: Configure Reverse Proxy
+  hosts: reverse_proxy
+  become: yes
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      when: ansible_os_family == "Debian"
+
+    - name: Install Nginx
+      apt:
+        name: nginx
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Get app server IP
+      set_fact:
+        app_server_ip: "{{ hostvars['app_server']['ansible_host'] }}"
+
+    - name: Configure Nginx as reverse proxy
+      copy:
+        dest: /etc/nginx/sites-available/default
+        content: |
+          server {
+              listen 80 default_server;
+              listen [::]:80 default_server;
+
+              server_name _;
+
+              location / {
+                  proxy_pass http://{{ app_server_ip }}:5000;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade $http_upgrade;
+                  proxy_set_header Connection keep-alive;
+                  proxy_set_header Host $host;
+                  proxy_cache_bypass $http_upgrade;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+              }
+          }
+      notify: Restart Nginx
+
+    - name: Enable Nginx site
+      file:
+        src: /etc/nginx/sites-available/default
+        dest: /etc/nginx/sites-enabled/default
+        state: link
+      notify: Restart Nginx
+
+    - name: Allow HTTP through UFW
+      ufw:
+        rule: allow
+        port: 80
+        proto: tcp
+
+  handlers:
+    - name: Restart Nginx
+      service:
+        name: nginx
+        state: restarted

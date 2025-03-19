@@ -1,128 +1,88 @@
+@description('Base name to use for resources')
+param projectName string
+
 @description('Location for all resources')
 param location string = resourceGroup().location
-param resourceGroupName string
-param adminEmail string // kept for future use
-param adminUsername string = 'azureuser'
+
+@description('Admin username for VMs')
+param adminUsername string
+
+@description('SSH public key for VMs')
+@secure()
 param sshPublicKey string
-param appServerIp string
-param appServerPort string
-param reverseProxyIp string
-param githubOrg string
-param githubRepoName string
-param githubToken string
-param appName string
-param bastionConfigHash string = ''
-param reverseProxyConfigHash string = ''
-param appServerConfigHash string = ''
 
-// Read cloud-init files - adjust paths as needed
-var bastionCloudInit = loadFileAsBase64('../cloud-init/bastion.yaml')
-var reverseProxyCloudInit = loadFileAsBase64('../cloud-init/reverse-proxy.yaml')
-var appServerCloudInit = loadFileAsBase64('../cloud-init/app-server.yaml')
+// Naming convention
+var vnetName = '${projectName}-vnet'
+var bastionName = '${projectName}-bastion'
+var appServerName = '${projectName}-appserver'
+var reverseProxyName = '${projectName}-proxy'
 
-// Deploy network resources (VNet, subnets, NSGs, etc)
-module networking 'networking.bicep' = {
+// Network setup
+module network './modules/network.bicep' = {
   name: 'networkDeployment'
   params: {
     location: location
-    resourceGroupName: resourceGroupName
+    projectName: projectName
   }
 }
 
-// Deploy storage account
-module storage 'storage.bicep' = {
-  name: 'storageDeployment'
+// Blob Storage
+module blobStorage './modules/blobstorage.bicep' = {
+  name: 'blobStorageDeployment'
   params: {
+    projectName: projectName
     location: location
-    resourceGroupName: resourceGroupName
-    vnetId: networking.outputs.vnetId
-    storageSubnetId: networking.outputs.storageSubnetId
   }
 }
 
-// Deploy Cosmos DB
-module cosmos 'cosmos.bicep' = {
-  name: 'cosmosDeployment'
-  params: {
-    location: location
-    resourceGroupName: resourceGroupName
-    vnetId: networking.outputs.vnetId
-    databaseSubnetId: networking.outputs.databaseSubnetId
-  }
-}
-
-// Deploy Bastion Host VM
-module bastion 'bastion.bicep' = {
+// Bastion host
+module bastionHost './modules/bastion.bicep' = {
   name: 'bastionDeployment'
   params: {
     location: location
-    resourceGroupName: resourceGroupName
+    bastionName: bastionName
     adminUsername: adminUsername
     sshPublicKey: sshPublicKey
-    subnetId: networking.outputs.bastionSubnetId
-    customData: bastionCloudInit
-    configHash: bastionConfigHash
-    githubOrg: githubOrg
-    githubRepoName: githubRepoName
-    githubToken: githubToken
-    appServerPort: appServerPort
+    subnetId: resourceId('Microsoft.Network/virtualNetworks/subnets', vnetName, 'BastionSubnet')
   }
+  dependsOn: [
+    network
+  ]
 }
 
-// Deploy Reverse Proxy VM
-module reverseProxy 'reverse-proxy.bicep' = {
-  name: 'reverseProxyDeployment'
-  params: {
-    location: location
-    resourceGroupName: resourceGroupName
-    adminUsername: adminUsername
-    sshPublicKey: sshPublicKey
-    subnetId: networking.outputs.reverseProxySubnetId
-    customData: reverseProxyCloudInit
-    privateIpAddress: reverseProxyIp
-    appServerIp: appServerIp
-    appServerPort: appServerPort
-    configHash: reverseProxyConfigHash  // Add this line
-  }
-}
-
-// Deploy App Server VM
-module appServer 'app-server.bicep' = {
+// App server
+module appServer './modules/app-server.bicep' = {
   name: 'appServerDeployment'
   params: {
+    appServerName: appServerName
     location: location
-    resourceGroupName: resourceGroupName
     adminUsername: adminUsername
     sshPublicKey: sshPublicKey
-    subnetId: networking.outputs.appServerSubnetId
-    customData: appServerCloudInit
-    privateIpAddress: appServerIp
-    appServerPort: appServerPort
-    githubOrg: githubOrg
-    githubRepoName: githubRepoName
-    githubToken: githubToken
-    appName: appName
-    configHash: appServerConfigHash  // Add this line
+    subnetId: resourceId('Microsoft.Network/virtualNetworks/subnets', vnetName, 'AppServerSubnet')
   }
+  dependsOn: [
+    network
+  ]
 }
 
-// Outputs for the deployment
-output bastionHostIp string = bastion.outputs.publicIp
+// Reverse proxy
+module reverseProxy './modules/reverse-proxy.bicep' = {
+  name: 'reverseProxyDeployment'
+  params: {
+    reverseProxyName: reverseProxyName
+    location: location
+    adminUsername: adminUsername
+    sshPublicKey: sshPublicKey
+    subnetId: resourceId('Microsoft.Network/virtualNetworks/subnets', vnetName, 'ReverseProxySubnet')
+  }
+  dependsOn: [
+    network
+  ]
+}
+
+// Output important information
+output bastionHostIp string = bastionHost.outputs.publicIp
 output reverseProxyIp string = reverseProxy.outputs.publicIp
-output appServerIp string = appServer.outputs.privateIp
-
-output connectionStrings object = {
-  ssh: {
-    // SSH to Bastion Host
-    bastionHost: 'ssh ${adminUsername}@${bastion.outputs.publicIp} -p 2222'
-
-    // SSH to Reverse Proxy via Bastion Host
-    reverseProxy: 'ssh -J ${adminUsername}@${bastion.outputs.publicIp}:2222 ${adminUsername}@${reverseProxy.outputs.privateIp}'
-
-    // SSH to App Server via Reverse Proxy
-    appServer: 'ssh -J ${adminUsername}@${bastion.outputs.publicIp}:2222 ${adminUsername}@${appServer.outputs.privateIp}'
-  }
-
-  // Web application URL
-  webApplication: 'http://${reverseProxy.outputs.publicIp}'
-}
+output appServerPrivateIp string = appServer.outputs.privateIp
+output storageAccountName string = blobStorage.outputs.storageAccountName
+output blobEndpoint string = blobStorage.outputs.blobEndpoint

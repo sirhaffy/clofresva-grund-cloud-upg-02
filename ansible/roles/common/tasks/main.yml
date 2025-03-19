@@ -1,0 +1,52 @@
+- name: Ensure required packages are installed
+  apt:
+    name:
+      - python3
+      - python3-pip
+      - git
+    state: present
+
+- name: Install Azure CLI
+  apt:
+    name: azure-cli
+    state: present
+
+- name: Install Ansible
+  pip:
+    name: ansible
+    state: latest
+
+- name: Create common directories
+  file:
+    path: "{{ item }}"
+    state: directory
+  loop:
+    - /var/log/myapp
+    - /etc/myapp
+
+- name: Copy environment configuration
+  template:
+    src: myapp.env.j2
+    dest: /etc/myapp/myapp.env
+
+- name: Set up logging
+  file:
+    path: /var/log/myapp/myapp.log
+    state: touch
+    mode: '0644'
+
+- name: Ensure firewall rules are set
+  ufw:
+    rule: allow
+    name: 'Open ports for application'
+    port: 
+      - '80'
+      - '2222'
+      - '22'
+    state: enabled
+
+- name: Ensure service is running
+  systemd:
+    name: myapp
+    state: started
+    enabled: yes

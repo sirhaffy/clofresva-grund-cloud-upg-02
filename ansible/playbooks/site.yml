@@ -1,0 +1,13 @@
+---
+- name: Configure all servers
+  hosts: all
+  become: true
+  tasks:
+    - name: Update package cache
+      apt:
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+- import_playbook: bastion.yml
+- import_playbook: app-server.yml
+- import_playbook: reverse-proxy.yml

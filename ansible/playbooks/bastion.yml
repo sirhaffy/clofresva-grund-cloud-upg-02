@@ -1,0 +1,54 @@
+- hosts: bastion
+  become: yes
+  tasks:
+    - name: Ensure the bastion host is installed
+      apt:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - openssh-server
+        - ufw
+
+    - name: Allow SSH and custom port for bastion
+      ufw:
+        rule: allow
+        name: "{{ item }}"
+      loop:
+        - '22'
+        - '2222'
+
+    - name: Enable UFW
+      ufw:
+        state: enabled
+
+    - name: Ensure SSH service is running
+      service:
+        name: ssh
+        state: started
+        enabled: yes
+
+    - name: Create a user for SSH access
+      user:
+        name: azureuser
+        shell: /bin/bash
+        create_home: yes
+        state: present
+
+    - name: Set authorized key for azureuser
+      authorized_key:
+        user: azureuser
+        state: present
+        key: "{{ lookup('file', '/path/to/your/public/key.pub') }}"  # Update with the correct path to your public key
+
+    - name: Ensure the bastion host is configured for public access
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?Port '
+        line: 'Port 2222'
+      notify: Restart SSH
+
+  handlers:
+    - name: Restart SSH
+      service:
+        name: ssh
+        state: restarted

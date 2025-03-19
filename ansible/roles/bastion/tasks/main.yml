@@ -1,0 +1,44 @@
+- name: Ensure the bastion host is configured
+  hosts: bastion
+  tasks:
+    - name: Install required packages
+      apt:
+        name:
+          - openssh-server
+        state: present
+
+    - name: Open port 2222 for SSH access
+      ufw:
+        rule: allow
+        name: 'Open port 2222'
+        port: 2222
+        proto: tcp
+
+    - name: Open port 22 for SSH access
+      ufw:
+        rule: allow
+        name: 'Open port 22'
+        port: 22
+        proto: tcp
+
+    - name: Enable UFW
+      ufw:
+        state: enabled
+
+    - name: Ensure SSH service is running
+      service:
+        name: ssh
+        state: started
+        enabled: yes
+
+    - name: Configure SSH to allow port 2222
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?Port 2222'
+        line: 'Port 2222'
+        state: present
+
+    - name: Restart SSH service to apply changes
+      service:
+        name: ssh
+        state: restarted
