@@ -114,3 +114,23 @@ Körs i början av projektet för att sätta upp grundläggande infrastruktur
 Fas 2: Konfigurationshantering (körs vid behov)
 Ansible hanterar konfiguration och applikationsdistribution
 Kan köras när som helst för att uppdatera konfiguration utan att röra infrastrukturen
+
+
+1. När du ska köra deploy.sh
+Deploy.sh shall jag bara köra när jag gör förändringar i infrastrukturen va?
+
+Ja, exakt! Du kör deploy.sh när du behöver:
+
+Skapa nya Azure-resurser
+Ändra befintliga resurser (t.ex. storleksjusteringar, nya nätverk)
+Återskapa miljön från grunden
+2. Ansible-konfigurationsändringar
+Om jag gör ändringar i config (ansible) så skall jag köra ett annat komando va?
+
+Rätt! För att bara applicera Ansible-konfigurationsändringar (utan att röra Azure-infrastrukturen):
+
+Detta kör bara Ansible-delen för att konfigurera mjukvara och inställningar på de befintliga VM:arna.
+
+
+Jag hade först byggt en lösning via den gamla tutorial-metoden med Azure CLI och hade som plan att göra ett gitrepo med Bicep och Cloud-Init som komplement. Men efter kursen med Ansible gjorde jag om hela lösningen, för jag vill ha det idempotent. 
+Jag fastnade ganska länge i deploy.sh skripet, som är det initiala skripet som sätter upp grunden för både infrastruktur (bicep) och configuration (ansible).

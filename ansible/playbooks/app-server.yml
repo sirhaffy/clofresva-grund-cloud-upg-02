@@ -1,23 +1,35 @@
-- name: Configure App Server
+---
+- name: Ensure the app server is installed and configured
   hosts: app_server
   become: yes
   tasks:
-    - name: Add .NET backports repository
-      apt_repository:
-        repo: "ppa:dotnet/backports"
-        state: present
-      when: ansible_os_family == "Debian"
-
     - name: Update apt cache
       apt:
         update_cache: yes
-      when: ansible_os_family == "Debian"
+        cache_valid_time: 3600
 
-    - name: Install ASP.NET Core Runtime
+    - name: Install required packages for PPA
+      apt:
+        name:
+          - software-properties-common
+          - nginx
+          - build-essential
+        state: present
+
+    - name: Add .NET PPA repository
+      command: add-apt-repository ppa:dotnet/backports -y
+      register: ppa_result
+      changed_when: ppa_result.rc == 0
+
+    - name: Update apt cache after adding PPA
+      apt:
+        update_cache: yes
+      when: ppa_result.changed
+
+    - name: Install .NET 9.0 runtime
       apt:
         name: aspnetcore-runtime-9.0
         state: present
-      when: ansible_os_family == "Debian"
 
     # Create app directory
     - name: Create app directory
