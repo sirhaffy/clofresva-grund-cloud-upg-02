@@ -22,12 +22,12 @@ export APP_NAME=${APP_NAME:-"CloFreSvaUpg02App"}
 # Use environment variables for sensitive data
 export ADMIN_EMAIL=${ADMIN_EMAIL:-"default_email@example.com"}
 export ADMIN_USERNAME=${ADMIN_USERNAME:-"azureuser"}
-export GITHUB_TOKEN=${GITHUB_TOKEN:-""}
+export github_runner_token=${github_runner_token:-""}
 
 # Validate required secrets are set
-if [ -z "$GITHUB_TOKEN" ]; then
+if [ -z "$github_runner_token" ]; then
   echo "Error: GitHub token is not set."
-  echo "Create a .env file with GITHUB_TOKEN=your_token or set it as an environment variable."
+  echo "Create a .env file with github_runner_token=your_token or set it as an environment variable."
   exit 1
 fi
 

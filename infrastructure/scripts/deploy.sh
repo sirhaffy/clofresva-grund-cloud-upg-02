@@ -195,7 +195,7 @@ all:
     blob_endpoint: "${BLOB_ENDPOINT}"
     public_proxy_ip: "${PROXY_IP}"
     REPO_GITHUB: "${REPO_GITHUB}"
-    github_token: "${RUNNER_TOKEN}"
+    github_runner_token: "${RUNNER_TOKEN}"
 EOF
 
 # Ask to run Ansible playbooks

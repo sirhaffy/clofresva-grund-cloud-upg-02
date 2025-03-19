@@ -145,7 +145,7 @@ jobs:
               storage_account: ${{ env.STORAGE_ACCOUNT }}
               blob_endpoint: ${{ env.BLOB_ENDPOINT }}
               github_repo: ${{ env.GITHUB_REPO }}
-              github_token: ${{ env.RUNNER_TOKEN }}
+              github_runner_token: ${{ env.RUNNER_TOKEN }}
           EOF
 
           echo "Waiting for SSH to be available..."

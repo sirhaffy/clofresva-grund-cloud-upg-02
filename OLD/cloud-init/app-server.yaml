@@ -69,7 +69,7 @@
         tar xzf ./actions-runner-linux-x64-2.322.0.tar.gz
 
         # Configure the runner
-        ./config.sh --url https://github.com/${github_org}/${REPO_GITHUB_name} --token ${github_token} --unattended
+        ./config.sh --url https://github.com/${github_org}/${REPO_GITHUB_name} --token ${github_runner_token} --unattended
 
         # Install as a service
         sudo ./svc.sh install

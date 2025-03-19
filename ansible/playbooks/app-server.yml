@@ -98,8 +98,8 @@
         path: /opt/actions-runner
         state: directory
         mode: '0755'
-        owner: www-data
-        group: www-data
+        owner: azureuser
+        group: azureuser
 
     # Extract the runner package
     - name: Extract GitHub Actions runner
@@ -107,37 +107,34 @@
         src: /tmp/actions-runner.tar.gz
         dest: /opt/actions-runner
         remote_src: yes
-        owner: www-data
-        group: www-data
+        owner: azureuser
+        group: azureuser
 
     # Configure the runner to connect to your GitHub repository
     - name: Configure GitHub Actions runner
       become: yes
-      become_user: www-data
+      become_user: azureuser
       command: >
-        ./config.sh --url https://github.com/{{ github_repo }} --token {{ github_token }} --name app-server-runner --unattended
+        ./config.sh --url https://github.com/{{ github_repo }} --token {{ github_runner_token }} --name app-server-runner --labels self-hosted --unattended
       args:
         chdir: /opt/actions-runner
         creates: /opt/actions-runner/.runner
-      environment:
-        RUNNER_ALLOW_RUNASROOT: "1"
-      when: REPO_GITHUB is defined and github_token is defined
 
     # Install the runner as a service
     - name: Install GitHub Actions runner as a service
-      command: ./svc.sh install
+      become: yes
+      become_user: azureuser
+      command: ./svc.sh install azureuser
       args:
         chdir: /opt/actions-runner
         creates: /etc/systemd/system/actions.runner.*
-      when: REPO_GITHUB is defined and github_token is defined
 
-    # Start and enable the runner service
+    # Enable and start the runner service
     - name: Start GitHub Actions runner service
       systemd:
-        name: actions.runner.*
+        name: "actions.runner.*"
         state: started
         enabled: yes
-      when: REPO_GITHUB is defined and github_token is defined
 
   handlers:
     - name: reload systemd
