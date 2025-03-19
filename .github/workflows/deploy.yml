@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4  # Uppdaterad version
+        uses: actions/checkout@v4
 
       - name: Azure Login
         uses: azure/login@v1
@@ -44,7 +44,7 @@ jobs:
         id: deploy
         uses: azure/arm-deploy@v1
         with:
-          scope: resourceGroup
+          scope: resourcegroup
           resourceGroupName: ${{ env.RESOURCE_GROUP }}
           template: ./infrastructure/bicep/main.bicep
           parameters: >
