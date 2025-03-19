@@ -16,7 +16,7 @@ export APP_SERVER_IP=${APP_SERVER_IP:-"10.0.2.10"}
 export APP_SERVER_PORT=${APP_SERVER_PORT:-"5000"}
 export REVERSE_PROXY_IP=${REVERSE_PROXY_IP:-"10.0.1.10"}
 export GITHUB_ORG=${GITHUB_ORG:-"Campus-Molndal-CLOH24"}
-export REPO_GITHUB_NAME=${REPO_GITHUB_NAME:-"CloFreSvaUpg02App"}
+export GITHUB_REPO_NAME=${GITHUB_REPO_NAME:-"CloFreSvaUpg02App"}
 export APP_NAME=${APP_NAME:-"CloFreSvaUpg02App"}
 
 # Use environment variables for sensitive data

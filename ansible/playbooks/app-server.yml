@@ -1,35 +1,24 @@
 ---
-- name: Ensure the app server is installed and configured
+- name: Configure App Server
   hosts: app_server
   become: yes
   tasks:
+    - name: Add .NET backports repository
+      apt_repository:
+        repo: "ppa:dotnet/backports"
+        state: present
+      when: ansible_os_family == "Debian"
+
     - name: Update apt cache
       apt:
         update_cache: yes
-        cache_valid_time: 3600
+      when: ansible_os_family == "Debian"
 
-    - name: Install required packages for PPA
-      apt:
-        name:
-          - software-properties-common
-          - nginx
-          - build-essential
-        state: present
-
-    - name: Add .NET PPA repository
-      command: add-apt-repository ppa:dotnet/backports -y
-      register: ppa_result
-      changed_when: ppa_result.rc == 0
-
-    - name: Update apt cache after adding PPA
-      apt:
-        update_cache: yes
-      when: ppa_result.changed
-
-    - name: Install .NET 9.0 runtime
+    - name: Install ASP.NET Core Runtime
       apt:
         name: aspnetcore-runtime-9.0
         state: present
+      when: ansible_os_family == "Debian"
 
     # Create app directory
     - name: Create app directory
@@ -126,13 +115,13 @@
     - name: Configure GitHub Actions runner
       become_user: www-data
       command: >
-        ./config.sh --url https://github.com/{{ REPO_GITHUB }} --token {{ github_token }} --name app-server-runner --unattended
+        ./config.sh --url https://github.com/{{ github_repo }} --token {{ github_token }} --name app-server-runner --unattended
       args:
         chdir: /opt/actions-runner
         creates: /opt/actions-runner/.runner
       environment:
         RUNNER_ALLOW_RUNASROOT: "1"
-      when: REPO_GITHUB is defined and github_token is defined
+      when: github_repo is defined and github_token is defined
 
     # Install the runner as a service
     - name: Install GitHub Actions runner as a service
@@ -140,7 +129,7 @@
       args:
         chdir: /opt/actions-runner
         creates: /etc/systemd/system/actions.runner.*
-      when: REPO_GITHUB is defined and github_token is defined
+      when: github_repo is defined and github_token is defined
 
     # Start and enable the runner service
     - name: Start GitHub Actions runner service
@@ -148,7 +137,7 @@
         name: actions.runner.*
         state: started
         enabled: yes
-      when: REPO_GITHUB is defined and github_token is defined
+      when: github_repo is defined and github_token is defined
 
   handlers:
     - name: reload systemd

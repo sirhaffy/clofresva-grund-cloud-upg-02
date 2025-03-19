@@ -9,7 +9,7 @@ env:
   PROJECT_NAME: ${{ secrets.PROJECT_NAME }}
   RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
   LOCATION: northeurope
-  REPO_GITHUB: ${{ secrets.REPO_GITHUB }}
+  GITHUB_REPO: ${{ secrets.REPO_GITHUB }}
   RUNNER_TOKEN: ${{ secrets.RUNNER_TOKEN }}
 
 jobs:
@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4  # Uppdaterad version
 
       - name: Azure Login
         uses: azure/login@v1
@@ -111,7 +111,7 @@ jobs:
               project_name: ${{ env.PROJECT_NAME }}
               storage_account: ${{ env.STORAGE_ACCOUNT }}
               blob_endpoint: ${{ env.BLOB_ENDPOINT }}
-              REPO_GITHUB: ${{ env.REPO_GITHUB }}
+              github_repo: ${{ env.GITHUB_REPO }}
               github_token: ${{ env.RUNNER_TOKEN }}
           EOF
 
@@ -143,7 +143,7 @@ jobs:
           dotnet publish ./WebbApp/WebbApp.csproj -c Release -o ./publish
 
       - name: Upload App Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: webapp
           path: ./publish
@@ -154,7 +154,7 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: Download App Artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: webapp
           path: /var/www/app
