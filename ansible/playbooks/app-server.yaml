@@ -102,15 +102,31 @@
 
     # Create app settings with MongoDB connection
     - name: Create application settings file
-      template:
-        src: appsettings.json.j2
+      copy:
+        content: |
+          {
+            "Logging": {
+              "LogLevel": {
+                "Default": "Information",
+                "Microsoft.AspNetCore": "Warning"
+              }
+            },
+            "AllowedHosts": "*",
+            "Storage": {
+              "AccountName": "{{ storage_account | default('storage-account-name') }}",
+              "BlobEndpoint": "{{ blob_endpoint | default('https://example.blob.core.windows.net/') }}"
+            },
+            "MongoDB": {
+              "ConnectionString": ""
+            },
+            "AppSettings": {
+              "Environment": "Production"
+            }
+          }
         dest: /var/www/app/appsettings.json
         owner: www-data
         group: www-data
         mode: '0644'
-      vars:
-        mongodb_connection_string_safe: "{{ mongodb_connection_string | default('') | string }}"
-        app_environment: "Production"
       notify: restart webapp service
 
     # Create web app service
