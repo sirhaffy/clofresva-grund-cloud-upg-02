@@ -30,6 +30,8 @@ Fick problem med identation när jag använde HEREDOC, så gick till ECHO per ra
 
 Provade att dela upp stegen i deploy.yaml i flera steg: 'Check Changed files', 'Deploy Azure Infrastructure', 'Configure servers with Ansible', 'Deploy Application as Artifact' och 'Deploy Artifact to App-Server' . Men det blev för mycket fuduplicerad kod (DRY) så jag la tillbaka det i ett tre steg istället: 'Check Changed files', 'Deploy Infrastructure', 'Deploy Ansible'. Gillar egentligen att ha fler steg för detta. Ska kolla om man kan skapa metoder eller något som man kan återanvända
 
+Brottades med connectionstring en stund i appsettings template, ddfick det att fungea tillslut. Men tyckte det var smidigar ee
+
 
 
 ## Folder Structure

@@ -464,8 +464,12 @@ jobs:
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP }}
       APP_IP: ${{ needs.deploy-infrastructure.outputs.APP_IP }}
+
+    # Only run if the app was successfully built.
+    if: ${{ always() && needs.deploy-app.result == 'success' }}
+
     steps:
-      # Använd vår återanvändbara SSH-uppsättning
+      # Use the SSH setup action.
       - name: Set up SSH keys
         uses: ./.github/actions/setup-ssh
         with:
