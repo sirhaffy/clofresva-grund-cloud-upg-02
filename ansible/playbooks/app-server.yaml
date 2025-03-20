@@ -109,7 +109,7 @@
         group: www-data
         mode: '0644'
       vars:
-        mongodb_connection_string: "{{ mongodb_connection_string | default('') }}"
+        mongodb_connection_string_safe: "{{ mongodb_connection_string | default('') | string }}"
         app_environment: "Production"
       notify: restart webapp service
 

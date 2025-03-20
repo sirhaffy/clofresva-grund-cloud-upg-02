@@ -11,7 +11,7 @@
     "BlobEndpoint": "{{ blob_endpoint | default('https://example.blob.core.windows.net/') }}"
   },
   "MongoDB": {
-    "ConnectionString": "{{ mongodb_connection_string | default('') }}"
+    "ConnectionString": "{{ mongodb_connection_string_safe }}"
   },
   "AppSettings": {
     "Environment": "{{ app_environment | default('Production') }}"
