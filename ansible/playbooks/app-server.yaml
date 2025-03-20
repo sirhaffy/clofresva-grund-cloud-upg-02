@@ -126,7 +126,8 @@
             "FEATUREFLAGS": {
               "USEAZURESTORAGE": true
             }
-          }    dest: /var/www/app/appsettings.json
+          }
+        dest: /var/www/app/appsettings.json
         owner: www-data
         group: www-data
         mode: '0644'

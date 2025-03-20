@@ -360,7 +360,7 @@ jobs:
           echo "    github_runner_token: ***" >> ./ansible/inventories/azure_rm.yaml
           # Säkert sätt att lägga till token i filen
           sed -i "s/github_runner_token: \*\*\*/github_runner_token: ${{ env.RUNNER_TOKEN }}/" ./ansible/inventories/azure_rm.yaml
-          echo "    mongodb_connection_string: '{{ env.MONGODB_CONNECTION_STRING }}'" >> ./ansible/inventories/azure_rm.yaml
+          echo "    mongodb_connection_string: '${{ env.MONGODB_CONNECTION_STRING }}'" >> ./ansible/inventories/azure_rm.yaml
 
           # Debug - visa inventory med maskerat token
           echo "Generated inventory file (sensitive data masked):"
