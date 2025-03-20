@@ -7,11 +7,11 @@
   },
   "AllowedHosts": "*",
   "Storage": {
-    "AccountName": "{{ storage_account | default('') }}",
-    "BlobEndpoint": "{{ blob_endpoint | default('') }}"
+    "AccountName": "{{ storage_account | default('storage-account-name') }}",
+    "BlobEndpoint": "{{ blob_endpoint | default('https://example.blob.core.windows.net/') }}"
   },
   "MongoDB": {
-    "ConnectionString": "{{ mongodb_connection_string | default('') }}"
+    "ConnectionString": {% if mongodb_connection_string is defined and mongodb_connection_string != "" %}"{{ mongodb_connection_string }}"{% else %}""{% endif %}
   },
   "AppSettings": {
     "Environment": "{{ app_environment | default('Production') }}"
