@@ -124,8 +124,6 @@ echo "Web application: http://$PROXY_IP/"
 echo "SSH to bastion: ssh -i $SSH_KEY_PATH azureuser@$BASTION_IP"
 echo "=============================================="
 
-# Create dynamic inventory file for Ansible
-# Detta är bara det relevanta avsnittet i deploy.sh
 
 # Create dynamic inventory file for Ansible
 mkdir -p ./ansible/inventories
