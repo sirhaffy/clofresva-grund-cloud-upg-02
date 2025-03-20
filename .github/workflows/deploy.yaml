@@ -197,53 +197,53 @@ jobs:
           echo "Testing SSH to app server at $APP_IP via bastion..."
           ssh -i ~/.ssh/id_clofresvagcupg02 -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@$BASTION_IP" azureuser@$APP_IP "echo 'App server connection successful!'" || echo "WARNING: App server connection failed!"
 
-      # Run Ansible to configure servers
-      - name: Run Ansible (Only App Server Setup)
-        if: ${{ github.event.inputs.skip_ansible != 'true' }}
-        run: |
-          # Create inventory file directory
-          mkdir -p ./ansible/inventories
+      # # Run Ansible to configure servers
+      # - name: Run Ansible (Only App Server Setup)
+      #   if: ${{ github.event.inputs.skip_ansible != 'true' }}
+      #   run: |
+      #     # Create inventory file directory
+      #     mkdir -p ./ansible/inventories
 
-          # Check if environment variables are available
-          if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
-            echo "WARNING: IP addresses not set. Using hardcoded values."
-            APP_IP="10.0.2.4"
-            BASTION_IP="137.116.232.168"
-          else
-            APP_IP="${{ env.APP_IP }}"
-            BASTION_IP="${{ env.BASTION_IP }}"
-          fi
+      #     # Check if environment variables are available
+      #     if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
+      #       echo "WARNING: IP addresses not set. Using hardcoded values."
+      #       APP_IP="10.0.2.4"
+      #       BASTION_IP="137.116.232.168"
+      #     else
+      #       APP_IP="${{ env.APP_IP }}"
+      #       BASTION_IP="${{ env.BASTION_IP }}"
+      #     fi
 
-          echo "Using App IP: $APP_IP"
-          echo "Using Bastion IP: $BASTION_IP"
+      #     echo "Using App IP: $APP_IP"
+      #     echo "Using Bastion IP: $BASTION_IP"
 
-          # Create inventory file with variable interpolation
-          echo "all:" > ./ansible/inventories/azure_rm.yaml
-          echo "  hosts:" >> ./ansible/inventories/azure_rm.yaml
-          echo "    app_server:" >> ./ansible/inventories/azure_rm.yaml
-          echo "      ansible_host: $APP_IP" >> ./ansible/inventories/azure_rm.yaml
-          echo "      ansible_user: azureuser" >> ./ansible/inventories/azure_rm.yaml
-          echo "      ansible_ssh_private_key_file: ~/.ssh/id_clofresvagcupg02" >> ./ansible/inventories/azure_rm.yaml
-          echo "      ansible_ssh_common_args: '-o ProxyCommand=\"ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@$BASTION_IP\"'" >> ./ansible/inventories/azure_rm.yaml
-          echo "  vars:" >> ./ansible/inventories/azure_rm.yaml
-          echo "    project_name: ${{ env.PROJECT_NAME }}" >> ./ansible/inventories/azure_rm.yaml
-          echo "    storage_account: ${{ env.STORAGE_ACCOUNT }}" >> ./ansible/inventories/azure_rm.yaml
-          echo "    blob_endpoint: ${{ env.BLOB_ENDPOINT }}" >> ./ansible/inventories/azure_rm.yaml
-          echo "    github_repo: ${{ env.REPO_NAME }}" >> ./ansible/inventories/azure_rm.yaml
-          echo "    github_runner_token: ***" >> ./ansible/inventories/azure_rm.yaml
-          # Säkert sätt att lägga till token i filen
-          sed -i "s/github_runner_token: \*\*\*/github_runner_token: ${{ env.RUNNER_TOKEN }}/" ./ansible/inventories/azure_rm.yaml
-          echo "    mongodb_connection_string: ${{ env.MONGODB_CONNECTION_STRING }}" >> ./ansible/inventories/azure_rm.yaml
+      #     # Create inventory file with variable interpolation
+      #     echo "all:" > ./ansible/inventories/azure_rm.yaml
+      #     echo "  hosts:" >> ./ansible/inventories/azure_rm.yaml
+      #     echo "    app_server:" >> ./ansible/inventories/azure_rm.yaml
+      #     echo "      ansible_host: $APP_IP" >> ./ansible/inventories/azure_rm.yaml
+      #     echo "      ansible_user: azureuser" >> ./ansible/inventories/azure_rm.yaml
+      #     echo "      ansible_ssh_private_key_file: ~/.ssh/id_clofresvagcupg02" >> ./ansible/inventories/azure_rm.yaml
+      #     echo "      ansible_ssh_common_args: '-o ProxyCommand=\"ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@$BASTION_IP\"'" >> ./ansible/inventories/azure_rm.yaml
+      #     echo "  vars:" >> ./ansible/inventories/azure_rm.yaml
+      #     echo "    project_name: ${{ env.PROJECT_NAME }}" >> ./ansible/inventories/azure_rm.yaml
+      #     echo "    storage_account: ${{ env.STORAGE_ACCOUNT }}" >> ./ansible/inventories/azure_rm.yaml
+      #     echo "    blob_endpoint: ${{ env.BLOB_ENDPOINT }}" >> ./ansible/inventories/azure_rm.yaml
+      #     echo "    github_repo: ${{ env.REPO_NAME }}" >> ./ansible/inventories/azure_rm.yaml
+      #     echo "    github_runner_token: ***" >> ./ansible/inventories/azure_rm.yaml
+      #     # Säkert sätt att lägga till token i filen
+      #     sed -i "s/github_runner_token: \*\*\*/github_runner_token: ${{ env.RUNNER_TOKEN }}/" ./ansible/inventories/azure_rm.yaml
+      #     echo "    mongodb_connection_string: ${{ env.MONGODB_CONNECTION_STRING }}" >> ./ansible/inventories/azure_rm.yaml
 
-          # Debug - visa inventory med maskerat token
-          echo "Generated inventory file (sensitive data masked):"
-          cat ./ansible/inventories/azure_rm.yaml | sed 's/github_runner_token: .*/github_runner_token: ***/'
+      #     # Debug - visa inventory med maskerat token
+      #     echo "Generated inventory file (sensitive data masked):"
+      #     cat ./ansible/inventories/azure_rm.yaml | sed 's/github_runner_token: .*/github_runner_token: ***/'
 
-          echo "Waiting for SSH to be available..."
-          sleep 60
+      #     echo "Waiting for SSH to be available..."
+      #     sleep 60
 
-          # Run app-server playbook
-          ansible-playbook -i ./ansible/inventories/azure_rm.yaml ./ansible/playbooks/app-server.yaml
+      #     # Run app-server playbook
+      #     ansible-playbook -i ./ansible/inventories/azure_rm.yaml ./ansible/playbooks/app-server.yaml
 
   configure-servers:
     name: Configure Servers with Ansible
@@ -469,6 +469,9 @@ jobs:
     if: ${{ always() && needs.deploy-app.result == 'success' }}
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       # Use the SSH setup action.
       - name: Set up SSH keys
         uses: ./.github/actions/setup-ssh
