@@ -1,0 +1,86 @@
+---
+- name: Check if GitHub runner is already installed
+  stat:
+    path: /opt/actions-runner/.runner
+  register: runner_installed
+
+- name: Install required packages
+  apt:
+    name:
+      - curl
+      - jq
+      - tar
+      - unzip
+    state: present
+    update_cache: yes
+  become: yes
+  when: not runner_installed.stat.exists
+
+- name: Create GitHub Actions runner directory
+  file:
+    path: /opt/actions-runner
+    state: directory
+    mode: '0755'
+    owner: azureuser
+    group: azureuser
+  become: yes
+  when: not runner_installed.stat.exists
+
+- name: Download GitHub Actions runner
+  get_url:
+    url: https://github.com/actions/runner/releases/download/v2.311.0/actions-runner-linux-x64-2.311.0.tar.gz
+    dest: /tmp/actions-runner.tar.gz
+    mode: '0644'
+  become: yes
+  when: not runner_installed.stat.exists
+
+- name: Extract GitHub Actions runner
+  unarchive:
+    src: /tmp/actions-runner.tar.gz
+    dest: /opt/actions-runner
+    remote_src: yes
+    owner: azureuser
+    group: azureuser
+  become: yes
+  when: not runner_installed.stat.exists
+
+# This task always runs to ensure the runner is registered with the latest token
+- name: Configure or update GitHub Actions runner
+  become: yes
+  become_user: azureuser
+  shell: |
+    cd /opt/actions-runner
+
+    # Remove runner if it exists
+    if [ -f ".runner" ]; then
+      ./config.sh remove --token {{ github_runner_token }} || true
+    fi
+
+    # Configure runner with new token
+    ./config.sh --url https://github.com/{{ github_repo }} \
+                --token {{ github_runner_token }} \
+                --name app-server-runner \
+                --labels self-hosted \
+                --unattended \
+                --replace
+  args:
+    executable: /bin/bash
+    creates: /opt/actions-runner/.runner
+
+- name: Install GitHub Actions runner service
+  become: yes
+  become_user: azureuser
+  shell: |
+    cd /opt/actions-runner
+    ./svc.sh install azureuser
+  args:
+    executable: /bin/bash
+    creates: /etc/systemd/system/actions.runner.*
+  when: not runner_installed.stat.exists
+
+- name: Enable and start GitHub Actions runner service
+  systemd:
+    name: "actions.runner.*"
+    state: started
+    enabled: yes
+  become: yes

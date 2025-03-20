@@ -1,6 +1,8 @@
 ---
 - name: Configure App Server
   hosts: app_server
+  roles:
+  - github_runner # Include the GitHub Runner role.
   become: yes # Run tasks as root
   tasks:
 

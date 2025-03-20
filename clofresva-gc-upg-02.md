@@ -35,7 +35,7 @@ Jag skapade först en ny dotnet app och städade den från bootstrap mm och la i
 .
 ├── .github/               # Directory containing GitHub Actions workflows
 │   └── workflows/         # Directory containing workflow files
-│       └── main.yml       # Main workflow file
+│       └── main.yaml       # Main workflow file
 │
 │
 ├── ansible/               # Directory containing Ansible configuration
@@ -50,21 +50,21 @@ Jag skapade först en ny dotnet app och städade den från bootstrap mm och la i
 │       ├── hosts          # Staging hosts file
 │       └── group_vars/    # Variables specific to staging groups
 ├── playbooks/             # Directory containing playbook files.
-│   ├── site.yml           # Main playbook that includes other playbooks
-│   ├── app-server.yml     # Playbook for app server setup
-│   └── reverse-proxy.yml  # Playbook for reverse proxy setup
+│   ├── site.yaml           # Main playbook that includes other playbooks
+│   ├── app-server.yaml     # Playbook for app server setup
+│   └── reverse-proxy.yaml  # Playbook for reverse proxy setup
 ├── roles/                 # Directory containing role definitions
 │   ├── common/            # Common role applied to all servers
 │   │   ├── tasks/         # Tasks for common role
-│   │   │   └── main.yml   # Main tasks file
+│   │   │   └── main.yaml   # Main tasks file
 │   │   ├── handlers/      # Handlers for common role
-│   │   │   └── main.yml   # Main handlers file
+│   │   │   └── main.yaml   # Main handlers file
 │   │   ├── templates/     # Jinja2 templates for common role
 │   │   ├── files/         # Static files for common role
 │   │   ├── vars/          # Variables for common role
-│   │   │   └── main.yml   # Main variables file
+│   │   │   └── main.yaml   # Main variables file
 │   │   └── defaults/      # Default variables for common role
-│   │       └── main.yml   # Main defaults file
+│   │       └── main.yaml   # Main defaults file
 │   └── app-server/        # Role specific to app servers
 │       ├── tasks/
 │       ├── handlers/

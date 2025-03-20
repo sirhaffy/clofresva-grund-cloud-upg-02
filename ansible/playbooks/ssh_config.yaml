@@ -1,0 +1,64 @@
+---
+- name: Configure SSH settings
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    bastion_ip: "{{ hostvars['bastion']['ansible_host'] }}"
+    app_ip: "{{ hostvars['app_server']['ansible_host'] }}"
+    proxy_ip: "{{ hostvars['reverse_proxy']['ansible_host'] }}"
+    ssh_key_path: "{{ lookup('env', 'SSH_KEY_PATH') }}"
+  tasks:
+    - name: Ensure SSH directory exists
+      file:
+        path: "{{ lookup('env', 'HOME') }}/.ssh"
+        state: directory
+        mode: '0700'
+
+    - name: Remove old host keys if they exist
+      ansible.builtin.shell: "ssh-keygen -f {{ lookup('env', 'HOME') }}/.ssh/known_hosts -R {{ item }} 2>/dev/null || true"
+      loop:
+        - "{{ bastion_ip }}"
+        - "{{ app_ip }}"
+        - "{{ proxy_ip }}"
+      changed_when: false
+      ignore_errors: true
+
+    - name: Configure SSH for hosts
+      blockinfile:
+        path: "{{ lookup('env', 'HOME') }}/.ssh/config"
+        create: yes
+        mode: '0600'
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - CLOUD PROJECT"
+        block: |
+          Host {{ bastion_ip }}
+            StrictHostKeyChecking accept-new
+            IdentityFile {{ ssh_key_path }}
+
+          Host {{ app_ip }}
+            StrictHostKeyChecking accept-new
+            ProxyCommand ssh -W %h:%p {{ bastion_ip }}
+            IdentityFile {{ ssh_key_path }}
+
+          Host {{ proxy_ip }}
+            StrictHostKeyChecking accept-new
+            ProxyCommand ssh -W %h:%p {{ bastion_ip }}
+            IdentityFile {{ ssh_key_path }}
+
+    - name: Wait for SSH connections to be available
+      wait_for:
+        host: "{{ item.host }}"
+        port: 22
+        state: started
+        delay: 5
+        timeout: 300
+        search_regex: OpenSSH
+      loop:
+        - { host: "{{ bastion_ip }}", name: "bastion" }
+      register: ssh_ready
+      ignore_errors: yes
+
+    - name: Show SSH status
+      debug:
+        msg: "SSH connection to {{ item.item.name }} is {{ 'available' if item.failed == false else 'not available' }}"
+      loop: "{{ ssh_ready.results }}"

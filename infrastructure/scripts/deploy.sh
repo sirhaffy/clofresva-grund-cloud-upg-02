@@ -1,19 +1,18 @@
 #!/bin/bash
-# filepath: d:\Dev\CloudDeveloper\06_Grund_Cloud\Inlamningsuppgift_02\infrastructure\scripts\deploy.sh
 
-# Source .env file if it exists
-if [ -f .env ]; then
-  source .env
+# Create .env file if it doesn't exist or load if it does
+if [ ! -f .env ]; then
+  echo "Creating new .env file with default values..."
+  cat > .env << EOF
+PROJECT_NAME=${PROJECT_NAME:-"clofresva-gc-upg02"}
+RESOURCE_GROUP=${RESOURCE_GROUP:-"RGCloFreSvaUpg02"}
+LOCATION=${LOCATION:-"northeurope"}
+REPO_NAME=${REPO_NAME:-"sirhaffy/clofresva-grund-cloud-upg-02"}
+SSH_KEY_PATH=${SSH_KEY_PATH:-"$HOME/.ssh/clofresva_gc_upg02_azure_key"}
+EOF
 else
-  echo "No .env file found. Creating from .env.sample..."
-  if [ -f .env.sample ]; then
-    cp .env.sample .env
-    echo "Please edit the .env file with your actual values, then run this script again."
-    exit 1
-  else
-    echo "No .env.sample file found. Cannot continue."
-    exit 1
-  fi
+  echo "Loading existing .env file..."
+  source .env
 fi
 
 # Set default values if not provided in .env
@@ -89,77 +88,33 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-# Extract values from outputs
-BASTION_IP=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.bastionHostIp.value')
-PROXY_IP=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.reverseProxyIp.value')
-STORAGE_ACCOUNT=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.storageAccountName.value')
-BLOB_ENDPOINT=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.blobEndpoint.value')
-APP_PRIVATE_IP=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.appServerPrivateIp.value')
-PROXY_PRIVATE_IP=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.reverseProxyPrivateIp.value')
+# Create a function to update .env variables
+update_env_var() {
+  local var_name=$1
+  local var_value=$2
 
-# Update .env file with these values
-sed -i "s/^BASTION_IP=.*/BASTION_IP=$BASTION_IP/" .env
-sed -i "s/^PROXY_IP=.*/PROXY_IP=$PROXY_IP/" .env
-sed -i "s/^STORAGE_ACCOUNT=.*/STORAGE_ACCOUNT=$STORAGE_ACCOUNT/" .env
-sed -i "s|^BLOB_ENDPOINT=.*|BLOB_ENDPOINT=$BLOB_ENDPOINT|" .env
-sed -i "s/^APP_PRIVATE_IP=.*/APP_PRIVATE_IP=$APP_PRIVATE_IP/" .env
-sed -i "s/^PROXY_PRIVATE_IP=.*/PROXY_PRIVATE_IP=$PROXY_PRIVATE_IP/" .env
-
-# Funktion för att rensa SSH known_hosts och hantera nya nycklar
-prepare_ssh_connections() {
-  local bastion_ip="$1"
-  local app_ip="$2"
-  local proxy_ip="$3"
-
-  echo "Preparing SSH connections by cleaning known hosts..."
-
-  # Ta bort eventuella tidigare SSH-nycklar för VM-IP-adresser
-  ssh-keygen -f "$HOME/.ssh/known_hosts" -R "$bastion_ip" 2>/dev/null || true
-  ssh-keygen -f "$HOME/.ssh/known_hosts" -R "$app_ip" 2>/dev/null || true
-  ssh-keygen -f "$HOME/.ssh/known_hosts" -R "$proxy_ip" 2>/dev/null || true
-
-  # Lägg till StrictHostKeyChecking=no i SSH-konfigurationen för dessa hosts
-  mkdir -p "$HOME/.ssh"
-  cat > "$HOME/.ssh/config" << EOF
-Host $bastion_ip
-  StrictHostKeyChecking accept-new
-
-Host $app_ip
-  StrictHostKeyChecking accept-new
-  ProxyCommand ssh -W %h:%p $bastion_ip
-
-Host $proxy_ip
-  StrictHostKeyChecking accept-new
-  ProxyCommand ssh -W %h:%p $bastion_ip
-EOF
-
-  chmod 600 "$HOME/.ssh/config"
-
-  echo "SSH configuration updated."
+  if grep -q "^${var_name}=" .env; then
+    sed -i "s|^${var_name}=.*|${var_name}=${var_value}|" .env
+  else
+    echo "${var_name}=${var_value}" >> .env
+  fi
 }
 
-# Funktion för att vänta på SSH-tillgänglighet
-wait_for_ssh() {
-  local host=$1
-  local max_attempts=30
-  local attempt=0
+# Use the function for all variables
+update_env_var "BASTION_IP" "$BASTION_IP"
+update_env_var "PROXY_IP" "$PROXY_IP"
+update_env_var "STORAGE_ACCOUNT" "$STORAGE_ACCOUNT"
+update_env_var "BLOB_ENDPOINT" "$BLOB_ENDPOINT"
+update_env_var "APP_PRIVATE_IP" "$APP_PRIVATE_IP"
+update_env_var "PROXY_PRIVATE_IP" "$PROXY_PRIVATE_IP"
 
-  echo "Waiting for SSH on $host..."
-
-  while [ $attempt -lt $max_attempts ]; do
-    if ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new -o BatchMode=yes -i "$SSH_KEY_PATH" azureuser@"$host" exit 2>/dev/null; then
-      echo "SSH connection to $host established."
-      return 0
-    fi
-
-    attempt=$((attempt+1))
-    echo "Attempt $attempt/$max_attempts failed. Waiting 10 seconds..."
-    sleep 10
-  done
-
-  echo "Failed to connect to $host after $max_attempts attempts."
-  return 1
-}
+# Setup SSH config with Ansible
+if command -v ansible-playbook &> /dev/null; then
+  echo "Setting up SSH configuration with Ansible..."
+  ansible-playbook -i ./ansible/inventories/azure_rm.yaml ./ansible/playbooks/ssh_config.yaml
+else
+  echo "Ansible not found. Manual SSH configuration may be required."
+fi
 
 # Display deployment information
 echo "=============================================="
@@ -174,7 +129,7 @@ echo "=============================================="
 
 # Create dynamic inventory file for Ansible
 mkdir -p ./ansible/inventories
-cat > ./ansible/inventories/azure_rm.yml << EOF
+cat > ./ansible/inventories/azure_rm.yaml << EOF
 all:
   hosts:
     bastion:
@@ -220,7 +175,7 @@ if [[ $RUN_ANSIBLE == "y" ]]; then
   if ! command -v ansible-playbook &> /dev/null; then
     echo "ansible-playbook not found. Please install Ansible and try again."
     echo "You can install it with: sudo apt install -y ansible"
-    echo "Then run Ansible manually with: ansible-playbook -i ./ansible/inventories/azure_rm.yml ./ansible/playbooks/site.yml"
+    echo "Then run Ansible manually with: ansible-playbook -i ./ansible/inventories/azure_rm.yaml ./ansible/playbooks/site.yaml"
     exit 1
   fi
 
@@ -236,10 +191,10 @@ EOF
   export REPO_NAME RUNNER_TOKEN
 
   # Run the playbooks
-  ANSIBLE_CONFIG=./ansible/ansible.cfg ansible-playbook -i ./ansible/inventories/azure_rm.yml ./ansible/playbooks/site.yml
+  ANSIBLE_CONFIG=./ansible/ansible.cfg ansible-playbook -i ./ansible/inventories/azure_rm.yaml ./ansible/playbooks/site.yaml
 else
   echo "Skipping Ansible playbooks. You can run them later with:"
-  echo "source .env && export REPO_NAME RUNNER_TOKEN && ansible-playbook -i ./ansible/inventories/azure_rm.yml ./ansible/playbooks/site.yml"
+  echo "source .env && export REPO_NAME RUNNER_TOKEN && ansible-playbook -i ./ansible/inventories/azure_rm.yaml ./ansible/playbooks/site.yaml"
 fi
 
 echo "Deployment process complete!"
