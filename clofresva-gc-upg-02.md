@@ -26,6 +26,8 @@ Jag skulle gärna koppla på Azure Keyvaults för att spara mina hemligheter, f�
 
 Jag skapade först en ny dotnet app och städade den från bootstrap mm och la in SCSS. Men insåg att jag sparar en massa tid på att återavnända MVC appen vi skapat i kursen. Så jag tog den och la in den i mitt repo.
 
+Fick problem med identation när jag använde HEREDOC, så gick till ECHO per rad istället.
+
 
 
 

@@ -165,26 +165,36 @@ jobs:
           echo "BASTION_IP=$BASTION_IP" >> $GITHUB_OUTPUT
           echo "APP_IP=$APP_IP" >> $GITHUB_OUTPUT
 
-      # Configure Ansible environment
-      - name: Configure Ansible environment
+      # Debug environment variables
+      - name: Ensure Ansible config exists
         run: |
-          # Verify ansible.cfg exists
-          if [ -f ./ansible/ansible.cfg ]; then
-            echo "Ansible config found:"
-            cat ./ansible/ansible.cfg
-          else
+          if [ ! -f ./ansible/ansible.cfg ]; then
             echo "Creating ansible.cfg..."
+            mkdir -p ./ansible
             echo "[defaults]" > ./ansible/ansible.cfg
             echo "host_key_checking = False" >> ./ansible/ansible.cfg
             echo "roles_path = ./ansible/roles" >> ./ansible/ansible.cfg
+          else
+            echo "ansible.cfg already exists:"
+            cat ./ansible/ansible.cfg
           fi
+
+          # Set the environment variable
+          echo "ANSIBLE_CONFIG=./ansible/ansible.cfg" >> $GITHUB_ENV
 
           # Debug directory structure
           echo "Directory structure:"
           find ./ansible -type d | sort
 
-          # Set ANSIBLE_CONFIG environment variable
-          echo "ANSIBLE_CONFIG=./ansible/ansible.cfg" >> $GITHUB_ENV
+      - name: Test SSH connectivity
+        run: |
+          # Test SSH to bastion
+          echo "Testing SSH to bastion host at ${{ env.BASTION_IP }}..."
+          ssh -i ~/.ssh/id_clofresvagcupg02 -o StrictHostKeyChecking=no -o ConnectTimeout=10 azureuser@${{ env.BASTION_IP }} "echo 'Bastion connection successful!'" || echo "WARNING: Bastion connection failed!"
+
+          # Test SSH to app server via bastion
+          echo "Testing SSH to app server at ${{ env.APP_IP }} via bastion..."
+          ssh -i ~/.ssh/id_clofresvagcupg02 -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.BASTION_IP }}" azureuser@${{ env.APP_IP }} "echo 'App server connection successful!'" || echo "WARNING: App server connection failed!"
 
       # Run Ansible to configure servers
       - name: Run Ansible (Only App Server Setup)
@@ -279,21 +289,67 @@ jobs:
           echo "RUNNER_TOKEN=$TOKEN" >> $GITHUB_ENV
           echo "New token generated!"
 
-          - name: Debug environment variables
-          run: |
-            echo "Environment variables:"
-            echo "BASTION_IP: ${{ env.BASTION_IP }}"
-            echo "APP_IP: ${{ env.APP_IP }}"
-            echo "PROJECT_NAME: ${{ env.PROJECT_NAME }}"
-            echo "STORAGE_ACCOUNT: ${{ env.STORAGE_ACCOUNT }}"
-            echo "BLOB_ENDPOINT: ${{ env.BLOB_ENDPOINT }}"
-            echo "REPO_NAME: ${{ env.REPO_NAME }}"
-            echo "RUNNER_TOKEN length: ${#RUNNER_TOKEN}"
-            echo "MONGODB_CONNECTION_STRING (excerpt): ${MONGODB_CONNECTION_STRING:0:20}..."
+      - name: Debug environment variables
+        run: |
+          echo "Environment variables:"
+          echo "BASTION_IP: ${{ env.BASTION_IP }}"
+          echo "APP_IP: ${{ env.APP_IP }}"
+          echo "PROJECT_NAME: ${{ env.PROJECT_NAME }}"
+          echo "STORAGE_ACCOUNT: ${{ env.STORAGE_ACCOUNT }}"
+          echo "BLOB_ENDPOINT: ${{ env.BLOB_ENDPOINT }}"
+          echo "REPO_NAME: ${{ env.REPO_NAME }}"
+          echo "RUNNER_TOKEN available: ${{ env.RUNNER_TOKEN != '' }}"
+          echo "RUNNER_TOKEN length: ${#RUNNER_TOKEN}"
+
+      - name: Ensure Ansible config exists
+        run: |
+          if [ ! -f ./ansible/ansible.cfg ]; then
+            echo "Creating ansible.cfg..."
+            mkdir -p ./ansible
+            echo "[defaults]" > ./ansible/ansible.cfg
+            echo "host_key_checking = False" >> ./ansible/ansible.cfg
+            echo "roles_path = ./ansible/roles" >> ./ansible/ansible.cfg
+          else
+            echo "ansible.cfg already exists:"
+            cat ./ansible/ansible.cfg
+          fi
+
+          # Set the environment variable
+          echo "ANSIBLE_CONFIG=./ansible/ansible.cfg" >> $GITHUB_ENV
+
+          # Debug directory structure
+          echo "Directory structure:"
+          find ./ansible -type d | sort
+
+      - name: Test SSH connectivity
+        run: |
+          # Test SSH to bastion
+          echo "Testing SSH to bastion host at ${{ env.BASTION_IP }}..."
+          ssh -i ~/.ssh/id_clofresvagcupg02 -o StrictHostKeyChecking=no -o ConnectTimeout=10 azureuser@${{ env.BASTION_IP }} "echo 'Bastion connection successful!'" || echo "WARNING: Bastion connection failed!"
+
+          # Test SSH to app server via bastion
+          echo "Testing SSH to app server at ${{ env.APP_IP }} via bastion..."
+          ssh -i ~/.ssh/id_clofresvagcupg02 -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.BASTION_IP }}" azureuser@${{ env.APP_IP }} "echo 'App server connection successful!'" || echo "WARNING: App server connection failed!"
 
       # Run Ansible to configure servers
       - name: Run Ansible
         run: |
+          # Check for required IP addresses first
+          if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
+            echo "ERROR: App IP or Bastion IP is missing!"
+            echo "App IP: '${{ env.APP_IP }}'"
+            echo "Bastion IP: '${{ env.BASTION_IP }}'"
+            echo "Using hardcoded values..."
+            APP_IP="10.0.2.4"
+            BASTION_IP="137.116.232.168"
+          else
+            APP_IP="${{ env.APP_IP }}"
+            BASTION_IP="${{ env.BASTION_IP }}"
+          fi
+
+          echo "Using App IP: $APP_IP"
+          echo "Using Bastion IP: $BASTION_IP"
+
           # Create ansible inventory
           echo "Creating Ansible inventory..."
           mkdir -p ./ansible/inventories
@@ -301,10 +357,10 @@ jobs:
           echo "all:" > ./ansible/inventories/azure_rm.yaml
           echo "  hosts:" >> ./ansible/inventories/azure_rm.yaml
           echo "    app_server:" >> ./ansible/inventories/azure_rm.yaml
-          echo "      ansible_host: ${{ env.APP_IP }}" >> ./ansible/inventories/azure_rm.yaml
+          echo "      ansible_host: $APP_IP" >> ./ansible/inventories/azure_rm.yaml
           echo "      ansible_user: azureuser" >> ./ansible/inventories/azure_rm.yaml
           echo "      ansible_ssh_private_key_file: ~/.ssh/id_clofresvagcupg02" >> ./ansible/inventories/azure_rm.yaml
-          echo "      ansible_ssh_common_args: '-o ProxyCommand=\"ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.BASTION_IP }}\"'" >> ./ansible/inventories/azure_rm.yaml
+          echo "      ansible_ssh_common_args: '-o ProxyCommand=\"ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@$BASTION_IP\"'" >> ./ansible/inventories/azure_rm.yaml
           echo "  vars:" >> ./ansible/inventories/azure_rm.yaml
           echo "    project_name: ${{ env.PROJECT_NAME }}" >> ./ansible/inventories/azure_rm.yaml
           echo "    storage_account: ${{ env.STORAGE_ACCOUNT }}" >> ./ansible/inventories/azure_rm.yaml
