@@ -111,7 +111,7 @@ update_env_var "PROXY_PRIVATE_IP" "$PROXY_PRIVATE_IP"
 # Setup SSH config with Ansible locally.
 if command -v ansible-playbook &> /dev/null; then
   echo "Setting up SSH configuration with Ansible..."
-  ansible-playbook -i ./ansible/inventories/azure_rm.yaml ./ansible/playbooks/ssh_config.yaml
+  ansible-playbook -i ./ansible/inventories/azure_rm.yaml ./ansible/playbooks/app-server.yaml
 else
   echo "Ansible not found. Manual SSH configuration may be required."
 fi
@@ -175,24 +175,19 @@ if [[ $RUN_ANSIBLE == "y" ]]; then
   if ! command -v ansible-playbook &> /dev/null; then
     echo "ansible-playbook not found. Please install Ansible and try again."
     echo "You can install it with: sudo apt install -y ansible"
-    echo "Then run Ansible manually with: ansible-playbook -i ./ansible/inventories/azure_rm.yaml ./ansible/playbooks/site.yaml"
+    echo "Then run Ansible manually with: ansible-playbook -i ./ansible/inventories/azure_rm.yaml ./ansible/playbooks/app-server.yaml"
     exit 1
   fi
 
-  # Skapa eller uppdatera ansible.cfg
-  cat > ./ansible/ansible.cfg << EOF
-[defaults]
-host_key_checking = False
-EOF
-
-  # Säkerställ att GitHub-variabler är exporterade för Ansible
-  # Läs in .env-filen igen för att säkerställa att eventuella manuella ändringar finns med
+  # Run the playbooks with the dynamic inventory file locally.
   source .env
   export REPO_NAME RUNNER_TOKEN
 
   # Run the playbooks with the dynamic inventory file locally.
-  ANSIBLE_CONFIG=./ansible/ansible.cfg ansible-playbook -i ./ansible/inventories/azure_rm.yaml ./ansible/playbooks/site.yaml
+  ANSIBLE_CONFIG=./ansible/ansible.cfg ansible-playbook -i ./ansible/inventories/azure_rm.yaml ./ansible/playbooks/app-server.yaml
 else
+
+  # Skippa Ansible-playbooks
   echo "Skipping Ansible playbooks. You can run them later with:"
   echo "source .env && export REPO_NAME RUNNER_TOKEN && ansible-playbook -i ./ansible/inventories/azure_rm.yaml ./ansible/playbooks/site.yaml"
 fi

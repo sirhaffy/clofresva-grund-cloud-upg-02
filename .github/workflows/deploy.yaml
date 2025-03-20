@@ -165,6 +165,29 @@ jobs:
           echo "BASTION_IP=$BASTION_IP" >> $GITHUB_OUTPUT
           echo "APP_IP=$APP_IP" >> $GITHUB_OUTPUT
 
+      # Configure Ansible environment
+      - name: Configure Ansible environment
+        run: |
+          # Verify ansible.cfg exists
+          if [ -f ./ansible/ansible.cfg ]; then
+            echo "Ansible config found:"
+            cat ./ansible/ansible.cfg
+          else
+            echo "Creating ansible.cfg..."
+            cat > ./ansible/ansible.cfg << EOF
+            [defaults]
+            host_key_checking = False
+            roles_path = ./ansible/roles
+            EOF
+          fi
+
+          # Debug directory structure
+          echo "Directory structure:"
+          find ./ansible -type d | sort
+
+          # Set ANSIBLE_CONFIG environment variable
+          echo "ANSIBLE_CONFIG=./ansible/ansible.cfg" >> $GITHUB_ENV
+
       - name: Run Ansible (Only App Server Setup)
         if: ${{ github.event.inputs.skip_ansible != 'true' }}
         run: |
@@ -190,10 +213,8 @@ jobs:
           echo "Waiting for SSH to be available..."
           sleep 60
 
-          # Endast köra app-server playbook istället för site.yaml som innehåller allt
-          ansible-playbook -i ./ansible/inventories/azure_rm.yaml \
-                              ./ansible/playbooks/app-server.yaml \
-                              || echo "Ansible problem encountered, continuing with app deployment"
+          # Run app-server playbook with Ansible on app server.
+          ansible-playbook -i ./ansible/inventories/azure_rm.yaml ./ansible/playbooks/app-server.yaml
 
 
   configure-servers:

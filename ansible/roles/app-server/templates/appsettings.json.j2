@@ -6,12 +6,14 @@
     }
   },
   "AllowedHosts": "*",
-  "ConnectionStrings": {
-    "MongoDB": "{{ mongodb_connection_string | default('') }}"
+  "Storage": {
+    "AccountName": "{{ storage_account | default('') }}",
+    "BlobEndpoint": "{{ blob_endpoint | default('') }}"
   },
-  "ApplicationSettings": {
-    "AppName": "{{ project_name }}",
-    "Environment": "{{ app_environment | default('Production') }}",
-    "BlobStorageUrl": "{{ blob_endpoint | default('') }}"
+  "MongoDB": {
+    "ConnectionString": "{{ mongodb_connection_string | default('') }}"
+  },
+  "AppSettings": {
+    "Environment": "{{ app_environment | default('Production') }}"
   }
 }
