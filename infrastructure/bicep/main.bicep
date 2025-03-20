@@ -1,7 +1,7 @@
 param projectName string
 param location string = resourceGroup().location
 param adminUsername string = 'azureuser'
-@secure()
+@secure() // Secure the SSH public key
 param sshPublicKey string
 
 // Nätverkskonfiguration - definiera allt centralt
@@ -62,7 +62,18 @@ module reverseProxy './modules/reverse-proxy.bicep' = {
   }
 }
 
-// Storage Module
+// Cosmos DB Module
+module cosmosDb 'modules/cosmosdb.bicep' = {
+  name: 'cosmosDbDeploy'
+  params: {
+    projectName: projectName
+    location: location
+    databaseName: 'myAppDb'
+    collectionName: 'items'
+  }
+}
+
+// Blob Storage Module
 module storageModule './modules/blobstorage.bicep' = {
   name: 'storageDeployment'
   params: {
@@ -72,9 +83,24 @@ module storageModule './modules/blobstorage.bicep' = {
 }
 
 // Outputs
+
+// Bastion Host Public IP
 output bastionHostIp string = bastionHost.outputs.publicIpAddress
+
+// App Server Public IP
 output reverseProxyIp string = reverseProxy.outputs.publicIpAddress
+
+// App Server Private IP
 output appServerPrivateIp string = appServer.outputs.privateIp
+
+// Reverse Proxy Private IP
 output reverseProxyPrivateIp string = reverseProxy.outputs.privateIp
+
+// MongoDB Connection String
+output mongoDbConnectionString string = cosmosDb.outputs.dotNetMongoConnectionString
+
+// Cosmos DB Account Name
 output storageAccountName string = storageModule.outputs.storageAccountName
+
+// Blob Storage Connection String
 output blobEndpoint string = storageModule.outputs.blobEndpoint

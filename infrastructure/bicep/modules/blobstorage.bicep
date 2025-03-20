@@ -18,7 +18,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2021-06-01' = {
     minimumTlsVersion: 'TLS1_2'
     networkAcls: {
       bypass: 'AzureServices'
-      defaultAction: 'Allow' // You might want to set this to 'Deny' for better security and explicitly allow specific networks
+      defaultAction: 'Allow'
     }
   }
 }

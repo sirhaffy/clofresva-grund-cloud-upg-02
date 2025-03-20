@@ -3,15 +3,15 @@ param appServerName string
 param subnetId string
 param adminUsername string
 param asgId string
-@secure()
+@secure() // Secure the SSH public key
 param sshPublicKey string
 
-// Create public IP address for App Server - ALLTID STATIC
+// Create public static IP address for App Server
 resource publicIp 'Microsoft.Network/publicIPAddresses@2021-05-01' = {
   name: '${appServerName}-public-ip'
   location: location
   properties: {
-    publicIPAllocationMethod: 'Static'
+    publicIPAllocationMethod: 'Static' // Static IP address
   }
 }
 
@@ -33,7 +33,7 @@ resource appNic 'Microsoft.Network/networkInterfaces@2021-05-01' = {
           }
           applicationSecurityGroups: [
             {
-              id: asgId
+              id: asgId // Associate the ASG with the NIC
             }
           ]
         }
@@ -43,19 +43,19 @@ resource appNic 'Microsoft.Network/networkInterfaces@2021-05-01' = {
 }
 
 // Add data disk for GitHub Actions workspace
-resource actionsDisk 'Microsoft.Compute/disks@2021-04-01' = {
-  name: '${appServerName}-data-disk'
-  location: location
-  sku: {
-    name: 'Standard_LRS'
-  }
-  properties: {
-    creationData: {
-      createOption: 'Empty'
-    }
-    diskSizeGB: 50  // Hårdkoda till en rationell storlek
-  }
-}
+// resource actionsDisk 'Microsoft.Compute/disks@2021-04-01' = {
+//   name: '${appServerName}-data-disk'
+//   location: location
+//   sku: {
+//     name: 'Standard_LRS'
+//   }
+//   properties: {
+//     creationData: {
+//       createOption: 'Empty'
+//     }
+//     diskSizeGB: 50
+//   }
+// }
 
 // Create the app server VM
 resource appServerVM 'Microsoft.Compute/virtualMachines@2021-07-01' = {
@@ -77,17 +77,16 @@ resource appServerVM 'Microsoft.Compute/virtualMachines@2021-07-01' = {
         managedDisk: {
           storageAccountType: 'Standard_LRS'
         }
-        // Ingen explicit diskSizeGB - låt Azure välja default (lämpligt för OS)
       }
-      dataDisks: [
-        {
-          createOption: 'Attach'
-          lun: 0
-          managedDisk: {
-            id: actionsDisk.id
-          }
-        }
-      ]
+      // dataDisks: [
+      //   {
+      //     createOption: 'Attach'
+      //     lun: 0
+      //     managedDisk: {
+      //       id: actionsDisk.id
+      //     }
+      //   }
+      // ]
     }
     osProfile: {
       computerName: appServerName
@@ -95,6 +94,7 @@ resource appServerVM 'Microsoft.Compute/virtualMachines@2021-07-01' = {
       linuxConfiguration: {
         disablePasswordAuthentication: true
         ssh: {
+          // Adds the SSH public key to the VMs authorized_keys file.
           publicKeys: [
             {
               path: '/home/${adminUsername}/.ssh/authorized_keys'
@@ -117,4 +117,4 @@ resource appServerVM 'Microsoft.Compute/virtualMachines@2021-07-01' = {
 // Outputs
 output vmId string = appServerVM.id
 output privateIp string = appNic.properties.ipConfigurations[0].properties.privateIPAddress
-output publicIpAddress string = publicIp.properties.ipAddress
+// output publicIpAddress string = publicIp.properties.ipAddress

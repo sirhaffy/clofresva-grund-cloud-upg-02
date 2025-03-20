@@ -3,6 +3,7 @@
   hosts: app_server
   become: yes # Run tasks as root
   tasks:
+
     # Add .NET 9.0 backports repository
     - name: Add .NET 9.0 backports repository
       apt_repository:
@@ -59,6 +60,13 @@
         state: present
       when: dotnet_installed is failed and ansible_os_family == "Debian"
 
+    # Stop web app service if running
+    - name: Stop web app service if running
+      systemd:
+        name: webapp
+        state: stopped
+      failed_when: false
+
     # Create app directory
     - name: Create app directory
       file:
@@ -92,6 +100,19 @@
         group: www-data
         mode: '0644'
 
+    # Create app settings with MongoDB connection
+    - name: Create application settings file
+      template:
+        src: appsettings.json.j2
+        dest: /var/www/app/appsettings.json
+        owner: www-data
+        group: www-data
+        mode: '0644'
+      vars:
+        mongodb_connection_string: "{{ mongodb_connection_string | default('') }}"
+        app_environment: "Production"
+      notify: restart webapp service
+
     # Create web app service
     - name: Create app service file
       copy:
@@ -102,7 +123,7 @@
 
           [Service]
           WorkingDirectory=/var/www/app
-          ExecStart=/usr/bin/dotnet /var/www/app/WebbApp.dll
+          ExecStart=/usr/bin/dotnet /var/www/app/MVC_TestApp.dll
           Restart=always
           RestartSec=15
           User=www-data
@@ -116,6 +137,7 @@
         owner: root
         group: root
         mode: '0644'
+      notify: restart webapp service
 
     # Open port for web service
     - name: Open port 5000 in firewall
@@ -211,7 +233,7 @@
         echo "Current directory content:"
         ls -la
 
-        echo "GitHub repo: {{ REPO_NAME }}"
+        echo "GitHub repo: {{ github_repo }}"
         echo "Token available: {{ 'Yes' if github_runner_token else 'No' }}"
 
         if [ -f ".runner" ]; then
@@ -220,8 +242,8 @@
           rm -f .runner .credentials || echo "Failed to remove runner files, continuing anyway"
         fi
 
-        echo "Configuring runner with token for {{ REPO_NAME }}"
-        ./config.sh --url https://github.com/{{ REPO_NAME }} --token {{ github_runner_token }} --name app-server-runner --labels self-hosted --unattended --replace
+        echo "Configuring runner with token for {{ github_repo }}"
+        ./config.sh --url https://github.com/{{ github_repo }} --token {{ github_runner_token }} --name app-server-runner --labels self-hosted --unattended --replace
 
         echo "Configuration result: $?"
         echo "Runner files after configuration:"
@@ -284,7 +306,7 @@
           Hostname: {{ ansible_hostname }}
 
           ## Runner Information
-          GitHub Repository: {{ REPO_NAME }}
+          GitHub Repository: {{ github_repo }}
           Runner Token Available: {{ 'Yes' if github_runner_token else 'No' }}
 
           ## Dotnet Status
@@ -307,3 +329,18 @@
         owner: azureuser
         group: azureuser
         mode: '0644'
+
+  handlers:
+    # Restart webapp service
+    - name: restart webapp service
+      systemd:
+        name: webapp
+        state: restarted
+        daemon_reload: yes
+        enabled: yes
+
+    # Lägg till en kort väntetid efter omstart för att låta tjänsten stabiliseras
+    - name: wait for service to start
+      pause:
+        seconds: 5
+      listen: restart webapp service

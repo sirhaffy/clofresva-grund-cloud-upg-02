@@ -1,0 +1,17 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "ConnectionStrings": {
+    "MongoDB": "{{ mongodb_connection_string | default('') }}"
+  },
+  "ApplicationSettings": {
+    "AppName": "{{ project_name }}",
+    "Environment": "{{ app_environment | default('Production') }}",
+    "BlobStorageUrl": "{{ blob_endpoint | default('') }}"
+  }
+}

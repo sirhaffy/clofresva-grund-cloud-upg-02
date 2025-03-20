@@ -1,71 +1,149 @@
-Azure Infrastructure Project
-Detta projekt automatiserar deployment av Azure-infrastruktur med hjälp av Bicep och Ansible. Det konfigurerar ett virtuellt nätverk med subnät för bastion-värd, applikationsserver, reverse proxy och Cosmos DB. Projektet innehåller även nödvändiga konfigurationer för säkerhetsgrupper och virtuella maskiner.
+# Azure Infrastructure Project
+- **Student**: Johan Nilsson
+- **Kurs**: Cloud Basics
+- **Institution**: Campus Mölndal YH
+- **Handledare**: Lars Larsson
+- 
 
-Parameterfilen uppdateras från miljövariabler.
+## Detaljer
+- **Projekt**: Azure Infrastructure Project
+- **GitHub Repo**: sirhaffy/
+- **Webbapplikation URL**: [WebbApp](https://webbapp.johannilsson.se)
 
-Grundläggande Ansible-mappstruktur
-Playbook-filer är yaml-filer som definierar uppgifter som ska utföras på målvärdarna.
-
-Roller ger ett sätt att organisera playbooks i återanvändbara komponenter. Varje roll har en standardiserad katalogstruktur:
-
-tasks: Huvuduppgifter som rollen utför
-handlers: Hanterare som utlöses av uppgifter
-templates: Jinja2-mallar, används för att generera filer och fungerar med variabler
-files: Statiska filer
-vars: Rollspecifika variabler
-defaults: Standardvariabler (lägst prioritet)
-meta: Rollmetadata och beroenden
-.env.sample: Exempel på miljövariabelkonfiguration för projektet.
-README.md: Dokumentation för projektet, inklusive instruktioner för installation och användning.
-.gitignore: Specificerar filer och kataloger som ska ignoreras av Git.
-Installationsanvisningar
-Klona projektet till din lokala maskin.
-Navigera till projektkatalogen.
-Konfigurera en .env-fil med följande secrets/variabler:
-PROJECT_NAME
-RESOURCE_GROUP
-LOCATION
-ADMIN_USERNAME
-REPO_NAME
-PAT_TOKEN (GitHub Personal Access Token med repo och workflow-rättigheter)
-SSH_KEY_PATH
-VNET_NAME
-BASTION_SSH_PORT
-APP_SERVER_PORT
-DOTNET_VERSION
-VM_SIZE
-Konfigurera dina Azure-autentiseringsuppgifter och prenumeration.
-Kör deployment-skripten för att konfigurera infrastrukturen och applikationen.
-GitHub Actions Secrets
-För att GitHub Actions workflow ska fungera korrekt behöver följande secrets vara konfigurerade i ditt GitHub-repository:
-
-PROJECT_NAME: Projektets namn (samma som i .env)
-RESOURCE_GROUP: Azure resursgruppens namn (samma som i .env)
-REPO_NAME: GitHub repository i formatet användarnamn/repo (samma som REPO_NAME i .env)
-PAT_TOKEN: GitHub Personal Access Token med repo-scope för att kunna generera runner-tokens
-SSH_PRIVATE_KEY: Privat SSH-nyckel för att ansluta till servrarna
-SSH_PUBLIC_KEY: Offentlig SSH-nyckel som installeras på servrarna
-AZURE_CREDENTIALS: JSON-output från az ad sp create-for-rbac kommandot
-Användning
-Använd de tillhandahållna Ansible-playbooks för att distribuera enskilda komponenter eller hela infrastrukturen.
-Använd GitHub Actions för CI/CD-arbetsflöden för att automatisera deployments.
-Detta projekt ger en heltäckande lösning för att distribuera en säker och skalbar Azure-infrastruktur med moderna verktyg och metoder.
-
-Deployment-strategi
-Deploy.sh ska bara köras när du gör förändringar i infrastrukturen, men jag har försökt göra den så idempotent som möjligt. Så den inte ställer till med stora saker när den behöver köras.
-
-Infrastrukturändringar
-Om det är infrastrukturändringar så ska Bicep köras.
-
-Ansible-konfigurationsändringar
-Om det är rena konfigurationsändringar så ska ansible köras.
-
-Ansible
-Ansible-konfigurationsändringar
-Om det är rena konfigurationsändringar så ska ansible köras. Detta steget har jag också bakat in i GH Workflow, den kollar om det är några ändringar som behöver köras. Annars hoppar den över det och gör bara ändringar i Appen.
-Lösningsbeskrivning och Tankar
-Jag hade först byggt en lösning via den gamla tutorial-metoden med Azure CLI och hade som plan att göra ett gitrepo med Bicep och Cloud-Init som komplement. Men efter kursen med Ansible gjorde jag om hela lösningen, för jag vill ha det idempotent.
+## Lösningsbeskrivning och Tankar
+Jag hade först byggt en lösning via den gamla tutorial-metoden med Azure CLI och hade som plan att göra ett gitrepo med Bicep och Cloud-Init som komplement. Men efter kursen med Ansible gjorde jag om hela lösningen, för jag vill ha det idempotent. 
 
 Jag fastnade ganska länge i deploy.sh skripet, som är det initiala skripet som sätter upp grunden för både infrastruktur (bicep) och configuration (ansible).
 
-Hade problem med att GH Actions väntade på att runnern skulle startas, vilket ger aningar om att allt kanske inte gick rätt i Ansible processen till, speciellt med Runnern. Fick tips av Lars om att det kanske var fel användare som används. Det var nog inte hela problemet. Jag SSH:ade in i app-servern och kollade lite, den verkar inte ha slutfört installationen, många saker saknades. Så började felsöka där. Skapade lite debugs och en log output med hjälp av AI, det ledde mig till att prova att skapa en PAT (Personal Access Token) med rättigheter för att låta Workflow hantera och skapa Runner Token. Lägger in den i GH Secrets för att sen kunna skapa RUNNER_TOKEN dynamiskt i GitHub Workflow.
+Fastnade en stund med att få till så den använde en nyare version för Ubuntu. Tillslut förstod jag att det var olika "offer" för olika "sku" och att jag behövde en annan offer för att få en nyare version.
+
+Hade problem med att GH Actions väntade på att runnern skulle startas, vilket ger aningar om att allt kanske inte gick rätt i Ansible processen till, speciellt med Runnern. Fick tips av Lars om att det kanske var fel användare som används. Det var nog inte hela problemet. Jag SSH:ade in i app-servern och kollade lite, den verkar inte ha slutfört installationen, många saker saknades. Så började felsöka där. Skapade lite debugs och en log output med hjälp av AI, det ledde mig till att prova att skapa en PAT (Personal Access Token) med rättigheter för att låta Workflow hantera och skapa Runner Token. Lägger in den i GH Secrets för att sen kunna skapa RUNNER_TOKEN dynamiskt i GitHub Workflow. Det löste problemet med att Runnern inte startade mm.
+
+<!-- Jag har också lagt in en Azure Dynamic Inventory som hämtar information om hostar från Azure. Detta är en stor fördel för att slippa hålla koll på IP-adresser och annat. -->
+
+
+
+## Folder Structure
+```bash
+.
+├── .github/               # Directory containing GitHub Actions workflows
+│   └── workflows/         # Directory containing workflow files
+│       └── main.yml       # Main workflow file
+│
+│
+├── ansible/               # Directory containing Ansible configuration
+│   ├── ansible.cfg        # Ansible configuration file
+│
+├── inventories/           # Directory containing inventory files, define target hosts and groups.
+│   ├── azure_rm.yaml      # Dynamic inventory that uses environment variables to get host information.
+│   ├── production/        # Production environment inventory
+│   │   ├── hosts          # Production hosts file
+│   │   └── group_vars/    # Variables specific to production groups
+│   └── staging/           # Staging environment inventory
+│       ├── hosts          # Staging hosts file
+│       └── group_vars/    # Variables specific to staging groups
+├── playbooks/             # Directory containing playbook files.
+│   ├── site.yml           # Main playbook that includes other playbooks
+│   ├── app-server.yml     # Playbook for app server setup
+│   └── reverse-proxy.yml  # Playbook for reverse proxy setup
+├── roles/                 # Directory containing role definitions
+│   ├── common/            # Common role applied to all servers
+│   │   ├── tasks/         # Tasks for common role
+│   │   │   └── main.yml   # Main tasks file
+│   │   ├── handlers/      # Handlers for common role
+│   │   │   └── main.yml   # Main handlers file
+│   │   ├── templates/     # Jinja2 templates for common role
+│   │   ├── files/         # Static files for common role
+│   │   ├── vars/          # Variables for common role
+│   │   │   └── main.yml   # Main variables file
+│   │   └── defaults/      # Default variables for common role
+│   │       └── main.yml   # Main defaults file
+│   └── app-server/        # Role specific to app servers
+│       ├── tasks/
+│       ├── handlers/
+│       └── ...
+│
+│
+├── infrastructure/         # Directory containing Bicep files for Azure infrastructure
+│   ├── main.bicep          # Main Bicep file for infrastructure deployment
+│   └── main.json           # Compiled JSON file from main.bicep
+│
+├── modules/                # 
+│   ├── app-server.bicep    # Skapar en VM och returnerar vmId, publicIp och privateIp.
+│   ├── bastion.bicep       # Skapar en VM och returnerar vmId och publicIp.
+│   ├── blobstorage.bicep   # Skapar Storage Account, Service och Container. Returnerar storageAccountName och blobEndpoint.
+│   ├── cosmosdb.bicep      # Skapar CosmosDB Account och Database. Returnerar cosmosDbAccountName och cosmosDbDatabaseName.
+│   ├── network.bicep       # 
+│   ├── reverse-proxy.bicep # 
+│   └── security.bicep      # 
+
+├── scripts/                # Directory containing shell scripts for deployment
+│   ├── deploy.sh           # Main deployment script
+│   ├── ansible.sh          # Ansible deployment script
+│   └── bicep.sh            # Bicep deployment script
+
+│
+├── WebbApp/               # Directory containing the web application
+│   ├── WebbApp.csproj     # Web application project file
+│   ├── Program.cs         # Main program file
+│
+├── .env.sample            # Sample environment variable configuration
+├── README.md              # Documentation for the project
+├── .gitignore             # Specifies files and directories to be ignored by Git
+└── setup.sh               # Setup script for the project
+```
+
+## Installationsanvisningar
+1. Klona projektet till din lokala maskin.
+2. Be mig lägga in din användare i GitHub-repot.
+3. Navigera till projektkatalogen.
+4. Skapa en .env-fil med följande bash komando:
+
+```bash
+cat > .env << 'EOF'
+PROJECT_NAME=clofresva-gc-upg02
+RESOURCE_GROUP=RGCloFreSvaUpg02
+LOCATION=northeurope
+REPO_NAME=sirhaffy/clofresva-grund-cloud-upg-02
+PAT_TOKEN=<Skapa en GitHub PAT och lägg in den här.>
+SSH_KEY_PATH=~/.ssh/clofresva_gc_upg02_azure_key
+EOF
+```
+* PAT behöver Administration, Action och Metadata rättigheter.
+
+// TODO: Frågor till Lars: Hur gör man när man är fler användare som ska kunna köra Azure Bicep?
+5. Konfigurera dina Azure-autentiseringsuppgifter och prenumeration.
+6. Kör deployment-skripten för att konfigurera infrastrukturen och applikationen.
+
+### GitHub Actions Secrets
+Vi har också dessa GitHub Secrets variabler:
+
+```env
+PROJECT_NAME=clofresva-gc-upg02
+RESOURCE_GROUP=RGCloFreSvaUpg02
+LOCATION=northeurope
+REPO_NAME=sirhaffy/clofresva-grund-cloud-upg-02
+PAT_TOKEN=<GitHub PAT>
+SSH_PRIVATE_KEY=<SSH private key>
+SSH_PUBLIC_KEY=<SSH public key>
+AZURE_CREDENTIALS=<Azure Service Principal credentials json>
+```
+
+## Deployment strategy
+Deploy.sh ska bara köras när du gör förändringar i infrastrukturen, men jag har försökt göra den så idempotent som möjligt. Så den inte ställer till med stora saker när den behöver köras.
+
+- Infrastrukturändringar
+Om det är infrastrukturändringar så ska Bicep köras.
+
+- Ansible-konfigurationsändringar
+Om det är rena konfigurationsändringar så ska ansible köras.
+
+
+### Ansible
+1. Ansible-konfigurationsändringar
+Om det är rena konfigurationsändringar så skall ansible köras. Detta steget har jag också bakat in i GH Workflow, den kollar om det är några ändringar som behöver köras. Annars hoppar den över det och gör bara ändringar i Appen.
+
+
+
+
+

@@ -162,6 +162,7 @@ jobs:
               blob_endpoint: ${{ env.BLOB_ENDPOINT }}
               github_repo: ${{ env.REPO_NAME }}
               github_runner_token: ${{ env.RUNNER_TOKEN }}
+              mongodb_connection_string: ${{ env.MONGODB_CONNECTION_STRING }}
           EOF
 
           echo "Waiting for SSH to be available..."
@@ -186,7 +187,7 @@ jobs:
 
       - name: Build Web App
         run: |
-          dotnet publish ./WebbApp/WebbApp.csproj -c Release -o ./publish
+          dotnet publish ./WebbApp/MVC_TestApp.csproj -c Release -o ./publish
 
       - name: Upload App Artifact
         uses: actions/upload-artifact@v4
