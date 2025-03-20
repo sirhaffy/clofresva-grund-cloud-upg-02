@@ -24,7 +24,6 @@ env:
   # Note: We don't set RUNNER_TOKEN here because it's generated dynamically
 
 jobs:
-
   # Check for changes to determine what needs to be run.
   check-changes:
     name: Check Changed Files
@@ -80,7 +79,7 @@ jobs:
           echo "  Ansible: ${{ steps.filter.outputs.ansible || 'false' }}"
           echo "  WebApp: ${{ steps.filter.outputs.webapp || 'false' }}"
 
-  # Deploy infrastructure with Bicep
+  # Check if dotnet app files were changed.
   deploy-infrastructure:
     name: Deploy Azure Infrastructure
     needs: check-changes
@@ -101,7 +100,7 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # Use the shared SSH setup action
+      # Använd vår återanvändbara SSH-uppsättning
       - name: Set up SSH keys
         uses: ./.github/actions/setup-ssh
         with:
@@ -117,23 +116,23 @@ jobs:
             | jq -r .token)
 
           echo "RUNNER_TOKEN=$TOKEN" >> $GITHUB_ENV
-          echo "Runner token generated successfully"
+          echo "Fresh token generated!"
 
-      - name: Create resource group if it doesn't exist
-        run: |
-          az group create --name ${{ env.RESOURCE_GROUP }} --location ${{ env.LOCATION }}
+      - name: Deploy Infrastructure
+        id: deploy
+        uses: azure/arm-deploy@v1
+        with:
+          scope: resourcegroup
+          resourceGroupName: ${{ env.RESOURCE_GROUP }}
+          template: ./infrastructure/bicep/main.bicep
+          parameters: >
+            projectName=${{ env.PROJECT_NAME }}
+            adminUsername=azureuser
+            sshPublicKey="${{ secrets.SSH_PUBLIC_KEY }}"
+            location=${{ env.LOCATION }}
+          deploymentName: main
 
-      - name: Deploy infrastructure with Bicep
-        id: bicep-deploy
-        run: |
-          az deployment group create \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --template-file ./infrastructure/bicep/main.bicep \
-            --parameters projectName=${{ env.PROJECT_NAME }} \
-            --parameters sshPublicKey="${{ secrets.SSH_PUBLIC_KEY }}" \
-            --name "main"
-
-      - name: Get deployment outputs
+      - name: Get Deployment Outputs
         id: outputs
         run: |
           echo "Getting deployment outputs..."
@@ -150,68 +149,75 @@ jobs:
           BLOB_ENDPOINT=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.blobEndpoint.value')
           MONGODB_CONNECTION_STRING=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.dotNetMongoConnectionString.value // ""')
 
-          # Set environment variables and outputs
-          echo "MONGODB_CONNECTION_STRING=$MONGODB_CONNECTION_STRING" >> $GITHUB_ENV
-          echo "MONGODB_CONNECTION_STRING=$MONGODB_CONNECTION_STRING" >> $GITHUB_OUTPUT
-          echo "BASTION_IP=$BASTION_IP" >> $GITHUB_ENV
+          # Set outputs for other jobs to use
           echo "BASTION_IP=$BASTION_IP" >> $GITHUB_OUTPUT
-          echo "APP_IP=$APP_IP" >> $GITHUB_ENV
           echo "APP_IP=$APP_IP" >> $GITHUB_OUTPUT
-          echo "STORAGE_ACCOUNT=$STORAGE_ACCOUNT" >> $GITHUB_ENV
           echo "STORAGE_ACCOUNT=$STORAGE_ACCOUNT" >> $GITHUB_OUTPUT
-          echo "BLOB_ENDPOINT=$BLOB_ENDPOINT" >> $GITHUB_ENV
           echo "BLOB_ENDPOINT=$BLOB_ENDPOINT" >> $GITHUB_OUTPUT
+          echo "MONGODB_CONNECTION_STRING=$MONGODB_CONNECTION_STRING" >> $GITHUB_OUTPUT
 
-      # Ensure the ansible.cfg file exists with correct roles_path
+          # Also set environment variables for current job
+          echo "BASTION_IP=$BASTION_IP" >> $GITHUB_ENV
+          echo "APP_IP=$APP_IP" >> $GITHUB_ENV
+          echo "STORAGE_ACCOUNT=$STORAGE_ACCOUNT" >> $GITHUB_ENV
+          echo "BLOB_ENDPOINT=$BLOB_ENDPOINT" >> $GITHUB_ENV
+          echo "MONGODB_CONNECTION_STRING=$MONGODB_CONNECTION_STRING" >> $GITHUB_ENV
+
       - name: Ensure Ansible config exists
         run: |
-          if [ ! -f ./ansible/ansible.cfg ]; then
-            echo "Creating ansible.cfg..."
-            mkdir -p ./ansible
-            echo "[defaults]" > ./ansible/ansible.cfg
-            echo "host_key_checking = False" >> ./ansible/ansible.cfg
-            echo "roles_path = ./ansible/roles" >> ./ansible/ansible.cfg
-          else
-            echo "ansible.cfg already exists:"
-            cat ./ansible/ansible.cfg
-          fi
+          mkdir -p ./ansible
+          echo "[defaults]" > ./ansible/ansible.cfg
+          echo "host_key_checking = False" >> ./ansible/ansible.cfg
+          echo "roles_path = ./ansible/roles" >> ./ansible/ansible.cfg
 
+          # Set the environment variable
           echo "ANSIBLE_CONFIG=./ansible/ansible.cfg" >> $GITHUB_ENV
 
-      # Test SSH connectivity for early error detection
+          # Debug directory structure
+          echo "Directory structure:"
+          find ./ansible -type d | sort
+
       - name: Test SSH connectivity
         run: |
+          # Check if environment variables are available
+          if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
+            echo "WARNING: IP addresses not set. Using hardcoded values."
+            APP_IP="10.0.2.4"
+            BASTION_IP="137.116.232.168"
+          else
+            APP_IP="${{ env.APP_IP }}"
+            BASTION_IP="${{ env.BASTION_IP }}"
+          fi
+
           # Test SSH to bastion
-          echo "Testing SSH to bastion host at ${{ steps.outputs.outputs.BASTION_IP }}..."
-          ssh -i ~/.ssh/id_clofresvagcupg02 -o StrictHostKeyChecking=no -o ConnectTimeout=10 azureuser@${{ steps.outputs.outputs.BASTION_IP }} "echo 'Bastion connection successful!'" || echo "WARNING: Bastion connection failed!"
+          echo "Testing SSH to bastion host at $BASTION_IP..."
+          ssh -i ~/.ssh/id_clofresvagcupg02 -o ConnectTimeout=10 azureuser@$BASTION_IP "echo 'Bastion connection successful!'" || echo "WARNING: Bastion connection failed!"
 
           # Test SSH to app server via bastion
-          echo "Testing SSH to app server at ${{ steps.outputs.outputs.APP_IP }} via bastion..."
-          ssh -i ~/.ssh/id_clofresvagcupg02 -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ steps.outputs.outputs.BASTION_IP }}" azureuser@${{ steps.outputs.outputs.APP_IP }} "echo 'App server connection successful!'" || echo "WARNING: App server connection failed!"
+          echo "Testing SSH to app server at $APP_IP via bastion..."
+          ssh -i ~/.ssh/id_clofresvagcupg02 -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@$BASTION_IP" azureuser@$APP_IP "echo 'App server connection successful!'" || echo "WARNING: App server connection failed!"
 
       # Run Ansible to configure servers
       - name: Run Ansible (Only App Server Setup)
         if: ${{ github.event.inputs.skip_ansible != 'true' }}
         run: |
-          # Make sure we have a directory for the inventory
+          # Create inventory file directory
           mkdir -p ./ansible/inventories
 
-          # Check if APP_IP and BASTION_IP are set
-          if [ -z "${{ steps.outputs.outputs.APP_IP }}" ] || [ -z "${{ steps.outputs.outputs.BASTION_IP }}" ]; then
-            echo "WARNING: APP_IP or BASTION_IP not set. Using hardcoded values."
+          # Check if environment variables are available
+          if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
+            echo "WARNING: IP addresses not set. Using hardcoded values."
             APP_IP="10.0.2.4"
             BASTION_IP="137.116.232.168"
           else
-            APP_IP="${{ steps.outputs.outputs.APP_IP }}"
-            BASTION_IP="${{ steps.outputs.outputs.BASTION_IP }}"
+            APP_IP="${{ env.APP_IP }}"
+            BASTION_IP="${{ env.BASTION_IP }}"
           fi
 
           echo "Using App IP: $APP_IP"
           echo "Using Bastion IP: $BASTION_IP"
 
-          echo "Getting fresh runner token and running app server setup (ansible)..."
-
-          # Create inventory file with variable interpolation and explicit IPs
+          # Create inventory file with variable interpolation
           echo "all:" > ./ansible/inventories/azure_rm.yaml
           echo "  hosts:" >> ./ansible/inventories/azure_rm.yaml
           echo "    app_server:" >> ./ansible/inventories/azure_rm.yaml
@@ -224,23 +230,21 @@ jobs:
           echo "    storage_account: ${{ env.STORAGE_ACCOUNT }}" >> ./ansible/inventories/azure_rm.yaml
           echo "    blob_endpoint: ${{ env.BLOB_ENDPOINT }}" >> ./ansible/inventories/azure_rm.yaml
           echo "    github_repo: ${{ env.REPO_NAME }}" >> ./ansible/inventories/azure_rm.yaml
-          # Don't echo the token directly to protect it from logs
           echo "    github_runner_token: ***" >> ./ansible/inventories/azure_rm.yaml
-          # But actually insert it into the file securely
+          # Säkert sätt att lägga till token i filen
           sed -i "s/github_runner_token: \*\*\*/github_runner_token: ${{ env.RUNNER_TOKEN }}/" ./ansible/inventories/azure_rm.yaml
           echo "    mongodb_connection_string: ${{ env.MONGODB_CONNECTION_STRING }}" >> ./ansible/inventories/azure_rm.yaml
 
-          # Debug - show the inventory file (masking sensitive data)
-          echo "Generated inventory file (with sensitive data masked):"
+          # Debug - visa inventory med maskerat token
+          echo "Generated inventory file (sensitive data masked):"
           cat ./ansible/inventories/azure_rm.yaml | sed 's/github_runner_token: .*/github_runner_token: ***/'
 
           echo "Waiting for SSH to be available..."
           sleep 60
 
           # Run app-server playbook
-          ANSIBLE_CONFIG=./ansible/ansible.cfg ansible-playbook -i ./ansible/inventories/azure_rm.yaml ./ansible/playbooks/app-server.yaml
+          ansible-playbook -i ./ansible/inventories/azure_rm.yaml ./ansible/playbooks/app-server.yaml
 
-  # Configure servers with Ansible
   configure-servers:
     name: Configure Servers with Ansible
     needs: [check-changes, deploy-infrastructure]
@@ -256,29 +260,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Use the shared SSH setup action
+      # Använd vår återanvändbara SSH-uppsättning
       - name: Set up SSH keys
         uses: ./.github/actions/setup-ssh
         with:
           ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      # Check environment variables
-      - name: Check environment variables
-        run: |
-          echo "Bastion IP: ${{ env.BASTION_IP }}"
-          echo "App IP: ${{ env.APP_IP }}"
-
-          # Fail early if variables are missing
-          if [ -z "${{ env.BASTION_IP }}" ] || [ -z "${{ env.APP_IP }}" ]; then
-            # If infrastructure was skipped, use the hardcoded values
-            echo "Using hardcoded values from Azure infrastructure..."
-            echo "BASTION_IP=137.116.232.168" >> $GITHUB_ENV
-            echo "APP_IP=10.0.2.4" >> $GITHUB_ENV
-          fi
-
       # Generate new runner token
       - name: Generate new runner token
+        id: generate_token
         run: |
+          echo "Getting new runner token..."
           TOKEN=$(curl -X POST -H "Authorization: token ${{ secrets.PAT_TOKEN }}" \
             -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/${{ env.REPO_NAME }}/actions/runners/registration-token \
@@ -299,34 +291,49 @@ jobs:
           echo "RUNNER_TOKEN available: ${{ env.RUNNER_TOKEN != '' }}"
           echo "RUNNER_TOKEN length: ${#RUNNER_TOKEN}"
 
-      # Verify ansible.cfg exists and has correct settings
-      - name: Verify ansible.cfg
+      - name: Ensure Ansible config exists
         run: |
-          if [ ! -f ./ansible/ansible.cfg ]; then
-            echo "Creating ansible.cfg..."
-            mkdir -p ./ansible
-            echo "[defaults]" > ./ansible/ansible.cfg
-            echo "host_key_checking = False" >> ./ansible/ansible.cfg
-            echo "roles_path = ./ansible/roles" >> ./ansible/ansible.cfg
-          else
-            echo "ansible.cfg already exists:"
-            cat ./ansible/ansible.cfg
-          fi
+          mkdir -p ./ansible
+          echo "[defaults]" > ./ansible/ansible.cfg
+          echo "host_key_checking = False" >> ./ansible/ansible.cfg
+          echo "roles_path = ./ansible/roles" >> ./ansible/ansible.cfg
 
+          # Set the environment variable
           echo "ANSIBLE_CONFIG=./ansible/ansible.cfg" >> $GITHUB_ENV
 
-      # Configure servers using Ansible
-      - name: Run Ansible configuration
+          # Debug directory structure
+          echo "Directory structure:"
+          find ./ansible -type d | sort
+
+      - name: Test SSH connectivity
         run: |
-          # Create ansible inventory
-          echo "Creating Ansible inventory..."
+          # Check if environment variables are available
+          if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
+            echo "WARNING: IP addresses not set. Using hardcoded values."
+            APP_IP="10.0.2.4"
+            BASTION_IP="137.116.232.168"
+          else
+            APP_IP="${{ env.APP_IP }}"
+            BASTION_IP="${{ env.BASTION_IP }}"
+          fi
+
+          # Test SSH to bastion
+          echo "Testing SSH to bastion host at $BASTION_IP..."
+          ssh -i ~/.ssh/id_clofresvagcupg02 -o ConnectTimeout=10 azureuser@$BASTION_IP "echo 'Bastion connection successful!'" || echo "WARNING: Bastion connection failed!"
+
+          # Test SSH to app server via bastion
+          echo "Testing SSH to app server at $APP_IP via bastion..."
+          ssh -i ~/.ssh/id_clofresvagcupg02 -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@$BASTION_IP" azureuser@$APP_IP "echo 'App server connection successful!'" || echo "WARNING: App server connection failed!"
+
+      # Run Ansible to configure servers
+      - name: Run Ansible
+        run: |
+          # Create ansible inventory directory
           mkdir -p ./ansible/inventories
 
+          # Check if environment variables are available
           if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
-            echo "ERROR: App IP or Bastion IP is missing!"
-            echo "App IP: '${{ env.APP_IP }}'"
-            echo "Bastion IP: '${{ env.BASTION_IP }}'"
-            echo "Using hardcoded values..."
+            echo "WARNING: IP addresses not set. Using hardcoded values."
             APP_IP="10.0.2.4"
             BASTION_IP="137.116.232.168"
           else
@@ -350,63 +357,198 @@ jobs:
           echo "    storage_account: ${{ env.STORAGE_ACCOUNT }}" >> ./ansible/inventories/azure_rm.yaml
           echo "    blob_endpoint: ${{ env.BLOB_ENDPOINT }}" >> ./ansible/inventories/azure_rm.yaml
           echo "    github_repo: ${{ env.REPO_NAME }}" >> ./ansible/inventories/azure_rm.yaml
-          # Don't echo the token directly to protect it from logs
           echo "    github_runner_token: ***" >> ./ansible/inventories/azure_rm.yaml
-          # But actually insert it into the file securely
+          # Säkert sätt att lägga till token i filen
           sed -i "s/github_runner_token: \*\*\*/github_runner_token: ${{ env.RUNNER_TOKEN }}/" ./ansible/inventories/azure_rm.yaml
           echo "    mongodb_connection_string: ${{ env.MONGODB_CONNECTION_STRING }}" >> ./ansible/inventories/azure_rm.yaml
 
-          # Debug - show the inventory file (masking sensitive data)
-          echo "Generated inventory file (masked):"
+          # Debug - visa inventory med maskerat token
+          echo "Generated inventory file (sensitive data masked):"
           cat ./ansible/inventories/azure_rm.yaml | sed 's/github_runner_token: .*/github_runner_token: ***/'
 
           echo "Waiting for SSH to be available..."
           sleep 60
 
           # Run app-server playbook
-          ANSIBLE_CONFIG=./ansible/ansible.cfg ansible-playbook -i ./ansible/inventories/azure_rm.yaml ./ansible/playbooks/app-server.yaml
+          ansible-playbook -i ./ansible/inventories/azure_rm.yaml ./ansible/playbooks/app-server.yaml
 
-  # Deploy application to the app server
+  # Build and deploy the dotnet app as an artifact and upload, if files were changed.
   deploy-app:
-    name: Deploy Application
+    name: Deploy Application as Artifact
+    runs-on: ubuntu-latest
     needs: [check-changes, deploy-infrastructure, configure-servers]
-    if: ${{ needs.check-changes.outputs.run_webapp == 'true' && (needs.deploy-infrastructure.result == 'success' || needs.deploy-infrastructure.result == 'skipped') }}
-    runs-on: self-hosted
+    env:
+      BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP }}
+      APP_IP: ${{ needs.deploy-infrastructure.outputs.APP_IP }}
+
+    # Only run if webapp files were changed and infrastructure deployment was successful.
+    if: ${{ always() && needs.check-changes.outputs.run_webapp == 'true' && (needs.deploy-infrastructure.result == 'success' || needs.deploy-infrastructure.result == 'skipped') &&(needs.configure-servers.result == 'success' || needs.configure-servers.result == 'skipped') }}
+
     steps:
+      # Check out the code from the repository
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v3
+      # Använd vår återanvändbara SSH-uppsättning
+      - name: Set up SSH keys
+        uses: ./.github/actions/setup-ssh
         with:
-          dotnet-version: '9.0.x'
+          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Restore dependencies
-        run: dotnet restore ./WebbApp/MVC_TestApp.csproj
+      # Set up .NET SDK
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
 
-      - name: Build
-        run: dotnet build ./WebbApp/MVC_TestApp.csproj --configuration Release --no-restore
-
-      - name: Publish
-        run: dotnet publish ./WebbApp/MVC_TestApp.csproj --configuration Release --no-build --output ./publish
-
-      - name: Deploy to app server
+      # Build the web application
+      - name: Build Web App
         run: |
-          # Since we're running on the app server directly as a self-hosted runner,
-          # we can just copy the files to the wwwroot directory
-          sudo mkdir -p /var/www/app
-          sudo cp -r ./publish/* /var/www/app/
-          sudo chown -R www-data:www-data /var/www/app
-          sudo chmod -R 755 /var/www/app
+          dotnet publish ./WebbApp/MVC_TestApp.csproj -c Release -o ./publish
 
-          # Restart the service
-          sudo systemctl restart webapp.service
-          echo "Application deployed and service restarted"
+          # Verify published files
+          echo "Listing published files:"
+          ls -la ./publish/
 
+          # Controll that the .dll file exists
+          if [ -f "./publish/MVC_TestApp.dll" ]; then
+            echo "MVC_TestApp.dll found!"
+          else
+            echo "WARNING: MVC_TestApp.dll NOT found!"
+            echo "Files in directory:"
+            find ./publish -name "*.dll"
+          fi
+
+      # Deploy the application to the server
       - name: Verify deployment
         run: |
-          # Wait for the app to start up
-          sleep 5
+          # Check if environment variables are available
+          if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
+            echo "WARNING: IP addresses not set. Using hardcoded values."
+            APP_IP="10.0.2.4"
+            BASTION_IP="137.116.232.168"
+          else
+            APP_IP="${{ env.APP_IP }}"
+            BASTION_IP="${{ env.BASTION_IP }}"
+          fi
 
-          # Check if the service is running
-          sudo systemctl status webapp.service || true
+          echo "Verifying deployment..."
+          # Wait 10 seconds for the service to stabilize
+          sleep 10
+
+          # Check service status
+          ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@$BASTION_IP" -i ~/.ssh/id_clofresvagcupg02 azureuser@$APP_IP "
+            echo 'Service status:'
+            sudo systemctl status webapp.service || true
+
+            echo 'Running processes:'
+            ps aux | grep dotnet
+
+            echo 'Service logs:'
+            sudo journalctl -u webapp.service --no-pager -n 20 || true
+          "
+
+      # Upload the artifact to the server
+      - name: Upload App Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: webapp
+          path: ./publish
+          retention-days: 1
+
+  # Deploy the artifact to the app server.
+  deploy-to-server:
+    name: Deploy Artifact to App-Server
+    needs: [deploy-app, deploy-infrastructure, configure-servers]
+    runs-on: ubuntu-latest
+    env:
+      BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP }}
+      APP_IP: ${{ needs.deploy-infrastructure.outputs.APP_IP }}
+    steps:
+      # Använd vår återanvändbara SSH-uppsättning
+      - name: Set up SSH keys
+        uses: ./.github/actions/setup-ssh
+        with:
+          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Debug SSH configuration
+        run: |
+          echo "SSH directory contents:"
+          ls -la ~/.ssh/
+
+          echo "SSH config file:"
+          cat ~/.ssh/config
+
+          # Check if environment variables are available
+          if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
+            echo "WARNING: IP addresses not set. Using hardcoded values."
+            APP_IP="10.0.2.4"
+            BASTION_IP="137.116.232.168"
+          else
+            APP_IP="${{ env.APP_IP }}"
+            BASTION_IP="${{ env.BASTION_IP }}"
+          fi
+
+          echo "Testing SSH connectivity:"
+          echo "Bastion IP: $BASTION_IP"
+          ssh -v -i ~/.ssh/id_clofresvagcupg02 azureuser@$BASTION_IP "echo 'Connected to Bastion'" || echo "Failed to connect to Bastion"
+
+      - name: Download App Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: webapp
+          path: ./webapp-files
+
+      - name: Create target directory and deploy app
+        run: |
+          echo "Creating webapp-files directory..."
+          mkdir -p ./webapp-files
+
+          # Check if environment variables are available
+          if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
+            echo "WARNING: IP addresses not set. Using hardcoded values."
+            APP_IP="10.0.2.4"
+            BASTION_IP="137.116.232.168"
+          else
+            APP_IP="${{ env.APP_IP }}"
+            BASTION_IP="${{ env.BASTION_IP }}"
+          fi
+
+          echo "Using App IP: $APP_IP"
+          echo "Using Bastion IP: $BASTION_IP"
+
+          echo "Creating target directory on remote server..."
+          ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@$BASTION_IP" -i ~/.ssh/id_clofresvagcupg02 azureuser@$APP_IP "sudo mkdir -p /tmp/webapp && sudo chown azureuser:azureuser /tmp/webapp"
+
+          echo "Copying files to remote server..."
+          scp -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@$BASTION_IP" -i ~/.ssh/id_clofresvagcupg02 -r ./webapp-files/* azureuser@$APP_IP:/tmp/webapp/
+
+          echo "Deploying files on app server..."
+          ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@$BASTION_IP" -i ~/.ssh/id_clofresvagcupg02 azureuser@$APP_IP "
+            echo 'Deploying application...'
+            sudo systemctl stop webapp.service || echo 'Service not running yet'
+
+            echo 'Removing old files...'
+            sudo rm -rf /var/www/app/*
+            sudo mkdir -p /var/www/app
+
+            echo 'Copy files to webapp directory...'
+            sudo cp -r /tmp/webapp/* /var/www/app/
+            sudo chown -R www-data:www-data /var/www/app
+
+            echo 'Listing files in webapp directory...'
+            ls -la /var/www/app/
+
+            echo 'Restarting service...'
+            sudo systemctl daemon-reload
+            sudo systemctl restart webapp.service
+
+            echo 'Service status:'
+            sudo systemctl status webapp.service || true
+            ps aux | grep dotnet
+
+            echo 'Service logs:'
+            sudo journalctl -u webapp.service --no-pager -n 50 || true
+
+            echo 'Application deployed!'
+          "
