@@ -174,7 +174,9 @@ jobs:
             cat ./ansible/ansible.cfg
           else
             echo "Creating ansible.cfg..."
-            cat > ./ansible/ansible.cfg << "[defaults]\nhost_key_checking = False\nroles_path = ./ansible/roles\n"
+            echo "[defaults]" > ./ansible/ansible.cfg
+            echo "host_key_checking = False" >> ./ansible/ansible.cfg
+            echo "roles_path = ./ansible/roles" >> ./ansible/ansible.cfg
           fi
 
           # Debug directory structure
@@ -275,22 +277,20 @@ jobs:
         run: |
           # Create ansible inventory
           echo "Creating Ansible inventory..."
-          cat > ./ansible/inventories/azure_rm.yaml << "EOT"
-          all:
-            hosts:
-              app_server:
-                ansible_host: ${APP_IP}
-                ansible_user: azureuser
-                ansible_ssh_private_key_file: ~/.ssh/id_clofresvagcupg02
-                ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@${BASTION_IP}"'
-            vars:
-              project_name: ${PROJECT_NAME}
-              storage_account: ${STORAGE_ACCOUNT}
-              blob_endpoint: ${BLOB_ENDPOINT}
-              github_repo: ${REPO_NAME}
-              github_runner_token: ${RUNNER_TOKEN}
-              mongodb_connection_string: ${MONGODB_CONNECTION_STRING}
-          EOT
+          echo "all:" > ./ansible/inventories/azure_rm.yaml
+          echo "  hosts:" >> ./ansible/inventories/azure_rm.yaml
+          echo "    app_server:" >> ./ansible/inventories/azure_rm.yaml
+          echo "      ansible_host: ${APP_IP}" >> ./ansible/inventories/azure_rm.yaml
+          echo "      ansible_user: azureuser" >> ./ansible/inventories/azure_rm.yaml
+          echo "      ansible_ssh_private_key_file: ~/.ssh/id_clofresvagcupg02" >> ./ansible/inventories/azure_rm.yaml
+          echo "      ansible_ssh_common_args: '-o ProxyCommand=\"ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@${BASTION_IP}\"'" >> ./ansible/inventories/azure_rm.yaml
+          echo "  vars:" >> ./ansible/inventories/azure_rm.yaml
+          echo "    project_name: ${PROJECT_NAME}" >> ./ansible/inventories/azure_rm.yaml
+          echo "    storage_account: ${STORAGE_ACCOUNT}" >> ./ansible/inventories/azure_rm.yaml
+          echo "    blob_endpoint: ${BLOB_ENDPOINT}" >> ./ansible/inventories/azure_rm.yaml
+          echo "    github_repo: ${REPO_NAME}" >> ./ansible/inventories/azure_rm.yaml
+          echo "    github_runner_token: ${RUNNER_TOKEN}" >> ./ansible/inventories/azure_rm.yaml
+          echo "    mongodb_connection_string: ${MONGODB_CONNECTION_STRING}" >> ./ansible/inventories/azure_rm.yaml
 
           echo "Waiting for SSH to be available..."
           sleep 60
