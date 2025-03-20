@@ -191,7 +191,9 @@ jobs:
           sleep 60
 
           # Endast köra app-server playbook istället för site.yaml som innehåller allt
-          ansible-playbook -i ./ansible/inventories/azure_rm.yaml ./ansible/playbooks/app-server.yaml || echo "Ansible problem encountered, continuing with app deployment"
+          ansible-playbook -i ./ansible/inventories/azure_rm.yaml \
+                              ./ansible/playbooks/app-server.yaml \
+                              || echo "Ansible problem encountered, continuing with app deployment"
 
 
   configure-servers:

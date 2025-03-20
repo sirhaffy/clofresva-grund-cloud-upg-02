@@ -1,21 +1,39 @@
 ---
+# Check if GitHub runner is already installed
 - name: Check if GitHub runner is already installed
   stat:
     path: /opt/actions-runner/.runner
   register: runner_installed
 
-- name: Install required packages
+# Install required packages for GitHub runner
+- name: Install required dependencies for GitHub Actions runner
   apt:
     name:
       - curl
       - jq
+      - sudo
       - tar
-      - unzip
+      - git
     state: present
-    update_cache: yes
-  become: yes
-  when: not runner_installed.stat.exists
+  register: dependencies_installed
 
+# Download GitHub Actions runner
+- name: Download GitHub Actions runner
+  get_url:
+    url: https://github.com/actions/runner/releases/download/v2.311.0/actions-runner-linux-x64-2.311.0.tar.gz
+    dest: /tmp/actions-runner-linux-x64-2.311.0.tar.gz
+    mode: '0644'
+    force: yes  # Always download new file
+  register: runner_download
+
+# Remove existing actions-runner directory if it exists
+- name: Remove existing actions-runner directory if it exists
+  file:
+    path: /opt/actions-runner
+    state: absent
+  when: runner_download.changed
+
+# Create GitHub Actions runner directory
 - name: Create GitHub Actions runner directory
   file:
     path: /opt/actions-runner
@@ -23,64 +41,68 @@
     mode: '0755'
     owner: azureuser
     group: azureuser
-  become: yes
-  when: not runner_installed.stat.exists
+  register: directory_created
 
-- name: Download GitHub Actions runner
-  get_url:
-    url: https://github.com/actions/runner/releases/download/v2.311.0/actions-runner-linux-x64-2.311.0.tar.gz
-    dest: /tmp/actions-runner.tar.gz
-    mode: '0644'
-  become: yes
-  when: not runner_installed.stat.exists
-
+# Extract GitHub Actions runner
 - name: Extract GitHub Actions runner
   unarchive:
-    src: /tmp/actions-runner.tar.gz
+    src: /tmp/actions-runner-linux-x64-2.311.0.tar.gz
     dest: /opt/actions-runner
     remote_src: yes
     owner: azureuser
     group: azureuser
-  become: yes
-  when: not runner_installed.stat.exists
+    mode: '0755'
+  register: extract_result
 
-# This task always runs to ensure the runner is registered with the latest token
-- name: Configure or update GitHub Actions runner
+# Configure GitHub Actions runner
+- name: Configure GitHub Actions runner
   become: yes
   become_user: azureuser
   shell: |
+    set -x  # Echo commands for better debugging
     cd /opt/actions-runner
 
-    # Remove runner if it exists
+    echo "Current directory content:"
+    ls -la
+
+    echo "GitHub repo: {{ github_repo }}"
+    echo "Token available: {{ 'Yes' if github_runner_token else 'No' }}"
+
     if [ -f ".runner" ]; then
-      ./config.sh remove --token {{ github_runner_token }} || true
+      echo "Removing existing runner configuration"
+      ./config.sh remove --token "{{ github_runner_token }}" || echo "Failed to remove runner, continuing anyway"
+      rm -f .runner .credentials || echo "Failed to remove runner files, continuing anyway"
     fi
 
-    # Configure runner with new token
-    ./config.sh --url https://github.com/{{ github_repo }} \
-                --token {{ github_runner_token }} \
-                --name app-server-runner \
-                --labels self-hosted \
-                --unattended \
-                --replace
+    echo "Configuring runner with token for {{ github_repo }}"
+    ./config.sh --url https://github.com/{{ github_repo }} --token {{ github_runner_token }} --name app-server-runner --labels self-hosted --unattended --replace
+
+    echo "Configuration result: $?"
+    echo "Runner files after configuration:"
+    ls -la
   args:
     executable: /bin/bash
-    creates: /opt/actions-runner/.runner
+  register: config_result
+  failed_when: false
 
-- name: Install GitHub Actions runner service
+# Install GitHub Actions runner as a service
+- name: Install GitHub Actions runner as a service
   become: yes
-  become_user: azureuser
   shell: |
     cd /opt/actions-runner
-    ./svc.sh install azureuser
+    ./svc.sh install azureuser || true
   args:
     executable: /bin/bash
-    creates: /etc/systemd/system/actions.runner.*
-  when: not runner_installed.stat.exists
+  register: service_install
+  failed_when: false
 
+# Enable and start GitHub Actions runner service
 - name: Enable and start GitHub Actions runner service
   systemd:
     name: "actions.runner.*"
     state: started
     enabled: yes
+    daemon_reload: yes
   become: yes
+  register: service_status
+  failed_when: false

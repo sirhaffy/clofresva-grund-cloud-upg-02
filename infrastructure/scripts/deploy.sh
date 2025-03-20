@@ -108,7 +108,7 @@ update_env_var "BLOB_ENDPOINT" "$BLOB_ENDPOINT"
 update_env_var "APP_PRIVATE_IP" "$APP_PRIVATE_IP"
 update_env_var "PROXY_PRIVATE_IP" "$PROXY_PRIVATE_IP"
 
-# Setup SSH config with Ansible
+# Setup SSH config with Ansible locally.
 if command -v ansible-playbook &> /dev/null; then
   echo "Setting up SSH configuration with Ansible..."
   ansible-playbook -i ./ansible/inventories/azure_rm.yaml ./ansible/playbooks/ssh_config.yaml
@@ -190,7 +190,7 @@ EOF
   source .env
   export REPO_NAME RUNNER_TOKEN
 
-  # Run the playbooks
+  # Run the playbooks with the dynamic inventory file locally.
   ANSIBLE_CONFIG=./ansible/ansible.cfg ansible-playbook -i ./ansible/inventories/azure_rm.yaml ./ansible/playbooks/site.yaml
 else
   echo "Skipping Ansible playbooks. You can run them later with:"
