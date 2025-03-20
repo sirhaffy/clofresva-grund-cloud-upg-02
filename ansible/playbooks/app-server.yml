@@ -133,6 +133,7 @@
 
           [Install]
           WantedBy=multi-user.target
+
         dest: /etc/systemd/system/webapp.service
         owner: root
         group: root
@@ -146,8 +147,7 @@
         port: '5000'
         proto: tcp
 
-    # GITHUB ACTIONS RUNNER SETUP
-    # Install required dependencies for GitHub Actions runner
+    # Install required dependencies for GitHub Actions Runner.
     - name: Install required dependencies for GitHub Actions runner
       apt:
         name:
@@ -163,7 +163,7 @@
       debug:
         var: dependencies_installed
 
-    # Download the GitHub Actions runner
+    # Download the GitHub Actions runner.
     - name: Download GitHub Actions runner
       get_url:
         url: https://github.com/actions/runner/releases/download/v2.311.0/actions-runner-linux-x64-2.311.0.tar.gz
@@ -176,7 +176,7 @@
       debug:
         var: runner_download
 
-    # Fixa problem med runner-katalogen
+    # Remove existing actions-runner directory if it exists.
     - name: Remove existing actions-runner directory if it exists
       file:
         path: /opt/actions-runner
@@ -253,7 +253,7 @@
       register: config_result
       failed_when: false
 
-    # Install GitHub Actions runner as a service
+    # Install GitHub Actions runner as a service.
     - name: Install GitHub Actions runner as a service
       become: yes
       shell: |
@@ -282,7 +282,7 @@
       debug:
         var: service_enabled
 
-    # Verify runner service is running
+    # Verify runner service is running.
     - name: Check runner service status
       shell: systemctl status actions.runner.* || true
       register: service_status
@@ -339,7 +339,7 @@
         daemon_reload: yes
         enabled: yes
 
-    # Lägg till en kort väntetid efter omstart för att låta tjänsten stabiliseras
+    # Wait for service to start.
     - name: wait for service to start
       pause:
         seconds: 5

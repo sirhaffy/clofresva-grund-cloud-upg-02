@@ -14,6 +14,7 @@ on:
         required: false
         default: 'false'
 
+# Environment variables
 env:
   PROJECT_NAME: ${{ secrets.PROJECT_NAME }}
   RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
@@ -22,6 +23,8 @@ env:
   RUNNER_TOKEN: ${{ secrets.RUNNER_TOKEN }}
 
 jobs:
+
+  # Check if infrastructure files were changed.
   check-changes:
     name: Check Changed Files
     runs-on: ubuntu-latest
@@ -52,6 +55,7 @@ jobs:
             fi
           done
 
+  # Check if dotnet app files were changed.
   deploy-infrastructure:
     name: Deploy Infrastructure
     needs: check-changes
@@ -164,6 +168,7 @@ jobs:
           # Endast köra app-server playbook istället för site.yml som innehåller allt
           ansible-playbook -i ./ansible/inventories/azure_rm.yml ./ansible/playbooks/app-server.yml || echo "Ansible problem encountered, continuing with app deployment"
 
+  # Build and deploy the dotnet app as an artifact and upload, if files were changed.
   deploy-app:
     name: Deploy Application
     runs-on: ubuntu-latest
@@ -247,6 +252,7 @@ jobs:
           path: ./publish
           retention-days: 1
 
+  # Deploy the artifact to the app server.
   deploy-to-server:
     name: Deploy to Server
     needs: [deploy-app, deploy-infrastructure]
@@ -320,20 +326,18 @@ jobs:
 
       - name: Create target directory and deploy app with fallback mechanisms
         run: |
-          # Förbered lokal katalog
+          echo "Creating webapp-files directory..."
           mkdir -p ./webapp-files
 
-          # Skapa ~/.ssh/known_hosts om den inte finns
+          echo "Creating known_hosts file..."
           touch ~/.ssh/known_hosts
 
-          # Rensa eventuella gamla nycklar för samma IP-adresser
+          echo "Removing old bastion host key..."
           ssh-keygen -R ${{ env.BASTION_IP }} || true
 
-          # Lägg till bastionens värdnyckel
           echo "Adding bastion host key..."
           ssh-keyscan -H ${{ env.BASTION_IP }} >> ~/.ssh/known_hosts || true
 
-          # Skapa mål-katalog på servern
           echo "Creating target directory on remote server..."
           ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.BASTION_IP }}" -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.APP_IP }} "sudo mkdir -p /tmp/webapp && sudo chown azureuser:azureuser /tmp/webapp"
 
@@ -342,20 +346,34 @@ jobs:
 
           echo "Deploying files on app server..."
           ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.BASTION_IP }}" -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.APP_IP }} "
-            # Stoppa tjänsten tydligt innan filkopiering
+
+            echo 'Deploying application...'
             sudo systemctl stop webapp.service || echo 'Service not running yet'
 
-            # Kopiera filer
+            echo 'Removing old files...'
+            sudo rm -rf /var/www/app/*
             sudo mkdir -p /var/www/app
+
+            echo 'Copy files to webapp directory...'
             sudo cp -r /tmp/webapp/* /var/www/app/
             sudo chown -R www-data:www-data /var/www/app
 
-            # Ladda om daemon och starta tjänsten
+            echo 'Listing files in webapp directory...'
+            ls -la /var/www/app/
+
+            echo 'Restarting service...'
             sudo systemctl daemon-reload
             sudo systemctl restart webapp.service
 
-            # Verifiera att tjänsten verkligen startar
+            echo 'Service status:'
             sudo systemctl status webapp.service || true
+            ps aux | grep dotnet
+
+            echo 'Service status:'
+            sudo systemctl status webapp.service || true
+
+            echo 'Service logs:'
+            sudo journalctl -u webapp.service --no-pager -n 50 || true
 
             echo 'Application deployed!'
           "
