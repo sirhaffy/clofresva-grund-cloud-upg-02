@@ -10,13 +10,13 @@ public class NewsletterService : INewsletterService
     // Dependency injections
     private readonly ISubscriberRepository _repository;
     private readonly IValidator<Subscriber> _validator;
-    
+
     public NewsletterService(ISubscriberRepository repository, IValidator<Subscriber> validator)
     {
         _repository = repository;
         _validator = validator;
     }
-    
+
     // Implement the methods
     public async Task<OperationResult> SignUpAsync(Subscriber subscriber)
     {
@@ -27,7 +27,7 @@ public class NewsletterService : INewsletterService
             return OperationResult.Failure(string.Join(", ", validationResult.Errors
                 .Select(e => $"{e.PropertyName}: {e.ErrorMessage}")));
         }
-    
+
         if (subscriber == null || string.IsNullOrWhiteSpace(subscriber.Email))
         {
             return OperationResult.Failure("Invalid subscriber information.");
@@ -66,10 +66,8 @@ public class NewsletterService : INewsletterService
                 ? OperationResult.Success("You have been successfully removed from our newsletter. We're sorry to see you go!")
                 : OperationResult.Failure("Failed to remove your subscription. Please try again.");
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            // Log exception (lägg till en logger om det behövs)
-            
             return OperationResult.Failure("An unexpected error occurred. Please try again later.");
         }
     }
@@ -80,5 +78,5 @@ public class NewsletterService : INewsletterService
         var subscribers = await _repository.GetSubscribersAsync();
         return subscribers.ToList();
     }
-    
+
 }

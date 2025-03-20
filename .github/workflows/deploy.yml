@@ -113,7 +113,6 @@ jobs:
             location=${{ env.LOCATION }}
           deploymentName: main
 
-      # I Get Deployment Outputs-steget i deploy.yml
       - name: Get Deployment Outputs
         id: outputs
         run: |
@@ -134,6 +133,8 @@ jobs:
           # Set environment variables and outputs
           echo "MONGODB_CONNECTION_STRING=$MONGODB_CONNECTION_STRING" >> $GITHUB_ENV
           echo "MONGODB_CONNECTION_STRING=$MONGODB_CONNECTION_STRING" >> $GITHUB_OUTPUT
+          echo "BASTION_IP=$BASTION_IP" >> $GITHUB_OUTPUT
+          echo "APP_IP=$APP_IP" >> $GITHUB_OUTPUT
 
       - name: Run Ansible (Only App Server Setup)
         if: ${{ github.event.inputs.skip_ansible != 'true' }}
@@ -180,6 +181,37 @@ jobs:
       - name: Build Web App
         run: |
           dotnet publish ./WebbApp/MVC_TestApp.csproj -c Release -o ./publish
+
+          # Verify published files
+          echo "Listing published files:"
+          ls -la ./publish/
+
+          # Controll that the .dll file exists
+          if [ -f "./publish/MVC_TestApp.dll" ]; then
+            echo "MVC_TestApp.dll found!"
+          else
+            echo "WARNING: MVC_TestApp.dll NOT found!"
+            echo "Files in directory:"
+            find ./publish -name "*.dll"
+          fi
+
+      - name: Verify deployment
+        run: |
+          echo "Verifying deployment..."
+          # Vänta 10 sekunder för att tjänsten ska stabiliseras
+          sleep 10
+
+          # Kontrollera tjänstestatus
+          ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.BASTION_IP }}" -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.APP_IP }} "
+            echo 'Service status:'
+            sudo systemctl status webapp.service || true
+
+            echo 'Running processes:'
+            ps aux | grep dotnet
+
+            echo 'Service logs:'
+            sudo journalctl -u webapp.service --no-pager -n 20 || true
+          "
 
       - name: Upload App Artifact
         uses: actions/upload-artifact@v4
@@ -237,6 +269,16 @@ jobs:
           name: webapp
           path: ./webapp-files
 
+      - name: Check if deployment is necessary
+        id: check_deploy
+        run: |
+          if [ -z "${{ env.BASTION_IP }}" ] || [ -z "${{ env.APP_IP }}" ]; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+          else
+            # Kolla om någon viktig fil har ändrats
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create target directory and deploy app with fallback mechanisms
         run: |
           # Förbered lokal katalog
@@ -261,9 +303,20 @@ jobs:
 
           echo "Deploying files on app server..."
           ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.BASTION_IP }}" -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.APP_IP }} "
+            # Stoppa tjänsten tydligt innan filkopiering
+            sudo systemctl stop webapp.service || echo 'Service not running yet'
+
+            # Kopiera filer
             sudo mkdir -p /var/www/app
             sudo cp -r /tmp/webapp/* /var/www/app/
             sudo chown -R www-data:www-data /var/www/app
-            sudo systemctl restart webapp.service || echo 'Failed to restart service, may not be running yet'
+
+            # Ladda om daemon och starta tjänsten
+            sudo systemctl daemon-reload
+            sudo systemctl restart webapp.service
+
+            # Verifiera att tjänsten verkligen startar
+            sudo systemctl status webapp.service || true
+
             echo 'Application deployed!'
           "

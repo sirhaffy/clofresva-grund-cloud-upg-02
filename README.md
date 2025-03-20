@@ -21,7 +21,11 @@ Hade problem med att GH Actions väntade på att runnern skulle startas, vilket 
 
 <!-- Jag har också lagt in en Azure Dynamic Inventory som hämtar information om hostar från Azure. Detta är en stor fördel för att slippa hålla koll på IP-adresser och annat. -->
 
+När jag skapar alla resurser i Azure så har jag lagt in dem i en Resource Group. Azure skapar då en NetworkWatcherRG automatiskt för att hantera nätverksövervakning, separat från min egen resursgrupp. Det är nytt för mig och något jag behöver djupdyka i en dag för att greppa.
+
 Jag skulle gärna koppla på Azure Keyvaults för att spara mina hemligheter, får kolla på det längre fram.
+
+
 
 
 
