@@ -1,127 +1,70 @@
-# Azure Infrastructure Project
+Azure Infrastructure Project
+Detta projekt automatiserar deployment av Azure-infrastruktur med hjälp av Bicep och Ansible. Det konfigurerar ett virtuellt nätverk med subnät för bastion-värd, applikationsserver, reverse proxy och Cosmos DB. Projektet innehåller även nödvändiga konfigurationer för säkerhetsgrupper och virtuella maskiner.
 
-This project automates the deployment of an Azure infrastructure using Bicep and Ansible. It sets up a virtual network with subnets for a bastion host, application server, reverse proxy, and Cosmos DB. The project also includes the necessary configurations for security groups and virtual machines.
+Parameterfilen uppdateras från miljövariabler.
 
-## Project Structure
+Grundläggande Ansible-mappstruktur
+Playbook-filer är yaml-filer som definierar uppgifter som ska utföras på målvärdarna.
 
-cloud-solution/
-├── .github/
-│   └── workflows/
-│       └── deploy.yml          # Single workflow for infrastructure and app deployment
-├── bicep/
-│   ├── main.bicep              # Main bicep template that orchestrates everything
-│   ├── modules/
-│   │   ├── network.bicep       # VNet and subnet definitions
-│   │   ├── bastion.bicep       # Bastion host VM
-│   │   ├── app-server.bicep    # App server VM with .NET 9
-│   │   └── reverse-proxy.bicep # Reverse proxy with nginx
-│   └── parameters.json         # Single parameters file for all resources
-├── ansible/
-│   ├── inventory.yml           # Single inventory file
-│   ├── site.yml                # Main playbook that runs everything
-│   └── roles/
-│       ├── common/             # Common configurations
-│       ├── bastion/            # Bastion-specific setup
-│       ├── app-server/         # App server setup with .NET 9
-│       └── reverse-proxy/      # Nginx reverse proxy configuration
-├── scripts/
-│   └── deploy.sh               # Single deployment script
-├── .env.sample                 # Template for your .env file
-└── README.md                   # Documentation
+Roller ger ett sätt att organisera playbooks i återanvändbara komponenter. Varje roll har en standardiserad katalogstruktur:
 
-Parameter file will get updated from environment variable.
+tasks: Huvuduppgifter som rollen utför
+handlers: Hanterare som utlöses av uppgifter
+templates: Jinja2-mallar, används för att generera filer och fungerar med variabler
+files: Statiska filer
+vars: Rollspecifika variabler
+defaults: Standardvariabler (lägst prioritet)
+meta: Rollmetadata och beroenden
+.env.sample: Exempel på miljövariabelkonfiguration för projektet.
+README.md: Dokumentation för projektet, inklusive instruktioner för installation och användning.
+.gitignore: Specificerar filer och kataloger som ska ignoreras av Git.
+Installationsanvisningar
+Klona projektet till din lokala maskin.
+Navigera till projektkatalogen.
+Konfigurera en .env-fil med följande secrets/variabler:
+PROJECT_NAME
+RESOURCE_GROUP
+LOCATION
+ADMIN_USERNAME
+REPO_NAME
+PAT_TOKEN (GitHub Personal Access Token med repo och workflow-rättigheter)
+SSH_KEY_PATH
+VNET_NAME
+BASTION_SSH_PORT
+APP_SERVER_PORT
+DOTNET_VERSION
+VM_SIZE
+Konfigurera dina Azure-autentiseringsuppgifter och prenumeration.
+Kör deployment-skripten för att konfigurera infrastrukturen och applikationen.
+GitHub Actions Secrets
+För att GitHub Actions workflow ska fungera korrekt behöver följande secrets vara konfigurerade i ditt GitHub-repository:
 
+PROJECT_NAME: Projektets namn (samma som i .env)
+RESOURCE_GROUP: Azure resursgruppens namn (samma som i .env)
+REPO_NAME: GitHub repository i formatet användarnamn/repo (samma som REPO_NAME i .env)
+PAT_TOKEN: GitHub Personal Access Token med repo-scope för att kunna generera runner-tokens
+SSH_PRIVATE_KEY: Privat SSH-nyckel för att ansluta till servrarna
+SSH_PUBLIC_KEY: Offentlig SSH-nyckel som installeras på servrarna
+AZURE_CREDENTIALS: JSON-output från az ad sp create-for-rbac kommandot
+Användning
+Använd de tillhandahållna Ansible-playbooks för att distribuera enskilda komponenter eller hela infrastrukturen.
+Använd GitHub Actions för CI/CD-arbetsflöden för att automatisera deployments.
+Detta projekt ger en heltäckande lösning för att distribuera en säker och skalbar Azure-infrastruktur med moderna verktyg och metoder.
 
-## Basic ansible folder structure
-ansible/
-├── ansible.cfg            # Configuration settings for Ansible, global parameters.
-├── inventories/           # Directory containing inventory files, define target hosts and groups.
+Deployment-strategi
+Deploy.sh ska bara köras när du gör förändringar i infrastrukturen, men jag har försökt göra den så idempotent som möjligt. Så den inte ställer till med stora saker när den behöver köras.
 
-|   ├── azure_rm.yaml      # Dynamic inventory that uses environment variables to get host information.
+Infrastrukturändringar
+Om det är infrastrukturändringar så ska Bicep köras.
 
-│   ├── production/        # Production environment inventory
-│   │   ├── hosts          # Production hosts file
-│   │   └── group_vars/    # Variables specific to production groups
-│   └── staging/           # Staging environment inventory
-│       ├── hosts          # Staging hosts file
-│       └── group_vars/    # Variables specific to staging groups
-├── playbooks/             # Directory containing playbook files.
+Ansible-konfigurationsändringar
+Om det är rena konfigurationsändringar så ska ansible köras.
 
-Playbook files are yaml files that ddefine a set of tasks to be executed on the target hosts.
-
-│   ├── site.yml           # Main playbook that includes other playbooks
-│   ├── app-server.yml     # Playbook for app server setup
-│   └── reverse-proxy.yml  # Playbook for reverse proxy setup
-
-Roles provide a way to organize playbooks into reusable components. Each role has a standardized directory structure:
-
-- tasks: Main tasks the role executes
-- handlers: Handlers triggered by tasks
-- templates: Jinja2 templates, used to generate files and works with variables.
-- files: Static files
-- vars: Role-specific variables
-- defaults: Default variables (lowest precedence)
-- meta: Role metadata and dependencies
-
-├── roles/                 # Directory containing role definitions
-│   ├── common/            # Common role applied to all servers
-│   │   ├── tasks/         # Tasks for common role
-│   │   │   └── main.yml   # Main tasks file
-│   │   ├── handlers/      # Handlers for common role
-│   │   │   └── main.yml   # Main handlers file
-│   │   ├── templates/     # Jinja2 templates for common role
-│   │   ├── files/         # Static files for common role
-│   │   ├── vars/          # Variables for common role
-│   │   │   └── main.yml   # Main variables file
-│   │   └── defaults/      # Default variables for common role
-│   │       └── main.yml   # Main defaults file
-│   └── app-server/        # Role specific to app servers
-│       ├── tasks/
-│       ├── handlers/
-│       └── ...
-└── library/               # Custom Ansible modules
-
-
-
-- **.env.sample**: Sample environment variable configuration for the project.
-
-- **README.md**: Documentation for the project, including setup instructions and usage.
-
-- **.gitignore**: Specifies files and directories to be ignored by Git.
-
-## Setup Instructions
-
-1. Clone the repository to your local machine.
-2. Navigate to the project directory.
-3. Configure the `.env` file based on the `.env.sample` file.
-4. Set up your Azure credentials and subscription.
-5. Run the deployment scripts to set up the infrastructure and application.
-
-## Usage
-
-- Use the provided Ansible playbooks to deploy individual components or the entire infrastructure.
-- Utilize GitHub Actions for CI/CD workflows to automate deployments.
-
-This project provides a comprehensive solution for deploying a secure and scalable Azure infrastructure using modern tools and practices.
-
-
-
-### ???
-Deploy.sh shall jag bara köra när jag gör förändringar i infrastrukturen, men jag har försökt göra den så idempotens jag kunnat. Så den inte ställer till med stora saker när den behöver köras. 
-
-1. Infrastrukturändringar
-Om det är infrastrukturändringar så skall Bicep köras.
-
-2. Ansible-konfigurationsändringar
-Om det är rena konfigurationsändringar så skall ansible köras.
-
-### Ansible
-1. Ansible-konfigurationsändringar
-Om det är rena konfigurationsändringar så skall ansible köras. Detta steget har jag också bakat in i GH Workflow, den kollar om det är några ändringar som behöver köras. Annars hoppar den över det och gör bara ändringar i Appen.
-
-
-## Lösningsbeskrivning och Tankar
-Jag hade först byggt en lösning via den gamla tutorial-metoden med Azure CLI och hade som plan att göra ett gitrepo med Bicep och Cloud-Init som komplement. Men efter kursen med Ansible gjorde jag om hela lösningen, för jag vill ha det idempotent. 
+Ansible
+Ansible-konfigurationsändringar
+Om det är rena konfigurationsändringar så ska ansible köras. Detta steget har jag också bakat in i GH Workflow, den kollar om det är några ändringar som behöver köras. Annars hoppar den över det och gör bara ändringar i Appen.
+Lösningsbeskrivning och Tankar
+Jag hade först byggt en lösning via den gamla tutorial-metoden med Azure CLI och hade som plan att göra ett gitrepo med Bicep och Cloud-Init som komplement. Men efter kursen med Ansible gjorde jag om hela lösningen, för jag vill ha det idempotent.
 
 Jag fastnade ganska länge i deploy.sh skripet, som är det initiala skripet som sätter upp grunden för både infrastruktur (bicep) och configuration (ansible).
 

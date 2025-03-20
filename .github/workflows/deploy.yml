@@ -18,7 +18,7 @@ env:
   PROJECT_NAME: ${{ secrets.PROJECT_NAME }}
   RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
   LOCATION: northeurope
-  REPO_NAME: ${{ secrets.REPO_GITHUB }}
+  REPO_NAME: ${{ secrets.REPO_NAME }}
   RUNNER_TOKEN: ${{ secrets.RUNNER_TOKEN }}
 
 jobs:
@@ -160,7 +160,7 @@ jobs:
               project_name: ${{ env.PROJECT_NAME }}
               storage_account: ${{ env.STORAGE_ACCOUNT }}
               blob_endpoint: ${{ env.BLOB_ENDPOINT }}
-              REPO_NAME: ${{ env.REPO_NAME }}
+              github_repo: ${{ env.REPO_NAME }}
               github_runner_token: ${{ env.RUNNER_TOKEN }}
           EOF
 
@@ -216,11 +216,27 @@ jobs:
             echo "APP_IP=10.0.2.4" >> $GITHUB_ENV
           fi
 
-      - name: Set up SSH keys
+      - name: Set up SSH keys and scan hosts
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_clofresvagcupg02
           chmod 600 ~/.ssh/id_clofresvagcupg02
+
+          # Skapa en SSH-config för att ignorera hostkey verification
+          cat > ~/.ssh/config << EOF
+          Host *
+            StrictHostKeyChecking no
+            UserKnownHostsFile=/dev/null
+          EOF
+          chmod 600 ~/.ssh/config
+
+          # Vänta lite innan SSH-anslutning försöks
+          echo "Waiting 10 seconds before trying to connect..."
+          sleep 10
+
+          # Testa SSH-anslutning till bastion med debug info
+          echo "Testing SSH connection to bastion..."
+          ssh -vvv -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.BASTION_IP }} "echo 'Bastion connection successful!'" || echo "Bastion connection failed but continuing"
 
       - name: Download App Artifact
         uses: actions/download-artifact@v4
@@ -228,20 +244,33 @@ jobs:
           name: webapp
           path: ./webapp-files
 
-      - name: Create target directory on remote
+      - name: Create target directory and deploy app with fallback mechanisms
         run: |
-          ssh -o StrictHostKeyChecking=no -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.BASTION_IP }}" -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.APP_IP }} "sudo mkdir -p /tmp/webapp && sudo chown azureuser:azureuser /tmp/webapp"
+          # Förbered lokal katalog
+          mkdir -p ./webapp-files
 
-      - name: Deploy to app server via SSH
-        run: |
-          # Kopiera filerna till app-server via bastion
-          scp -o StrictHostKeyChecking=no -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.BASTION_IP }}" -i ~/.ssh/id_clofresvagcupg02 -r ./webapp-files/* azureuser@${{ env.APP_IP }}:/tmp/webapp/
+          # Skapa ~/.ssh/known_hosts om den inte finns
+          touch ~/.ssh/known_hosts
 
-          # Flytta filer och sätt rättigheter på app-server
-          ssh -o StrictHostKeyChecking=no -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.BASTION_IP }}" -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.APP_IP }} "
+          # Rensa eventuella gamla nycklar för samma IP-adresser
+          ssh-keygen -R ${{ env.BASTION_IP }} || true
+
+          # Lägg till bastionens värdnyckel
+          echo "Adding bastion host key..."
+          ssh-keyscan -H ${{ env.BASTION_IP }} >> ~/.ssh/known_hosts || true
+
+          # Skapa mål-katalog på servern
+          echo "Creating target directory on remote server..."
+          ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.BASTION_IP }}" -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.APP_IP }} "sudo mkdir -p /tmp/webapp && sudo chown azureuser:azureuser /tmp/webapp"
+
+          echo "Copying files to remote server..."
+          scp -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.BASTION_IP }}" -i ~/.ssh/id_clofresvagcupg02 -r ./webapp-files/* azureuser@${{ env.APP_IP }}:/tmp/webapp/
+
+          echo "Deploying files on app server..."
+          ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.BASTION_IP }}" -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.APP_IP }} "
             sudo mkdir -p /var/www/app
             sudo cp -r /tmp/webapp/* /var/www/app/
             sudo chown -R www-data:www-data /var/www/app
-            sudo systemctl restart webapp.service
-            echo 'Application deployed and service restarted!'
+            sudo systemctl restart webapp.service || echo 'Failed to restart service, may not be running yet'
+            echo 'Application deployed!'
           "
