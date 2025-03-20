@@ -106,33 +106,23 @@ This project provides a comprehensive solution for deploying a secure and scalab
 
 
 
+### ???
+Deploy.sh shall jag bara köra när jag gör förändringar i infrastrukturen, men jag har försökt göra den så idempotens jag kunnat. Så den inte ställer till med stora saker när den behöver köras. 
 
-Fas 1: Grundläggande infrastruktur (körs en gång)
-Denna fas skapar alla Azure-resurser inklusive VMs, nätverksresurser, etc.
-Körs i början av projektet för att sätta upp grundläggande infrastruktur
+1. Infrastrukturändringar
+Om det är infrastrukturändringar så skall Bicep köras.
 
-Fas 2: Konfigurationshantering (körs vid behov)
-Ansible hanterar konfiguration och applikationsdistribution
-Kan köras när som helst för att uppdatera konfiguration utan att röra infrastrukturen
-
-
-1. När du ska köra deploy.sh
-Deploy.sh shall jag bara köra när jag gör förändringar i infrastrukturen va?
-
-Ja, exakt! Du kör deploy.sh när du behöver:
-
-Skapa nya Azure-resurser
-Ändra befintliga resurser (t.ex. storleksjusteringar, nya nätverk)
-Återskapa miljön från grunden
 2. Ansible-konfigurationsändringar
-Om jag gör ändringar i config (ansible) så skall jag köra ett annat komando va?
+Om det är rena konfigurationsändringar så skall ansible köras.
 
-Rätt! För att bara applicera Ansible-konfigurationsändringar (utan att röra Azure-infrastrukturen):
+### Ansible
+1. Ansible-konfigurationsändringar
+Om det är rena konfigurationsändringar så skall ansible köras. Detta steget har jag också bakat in i GH Workflow, den kollar om det är några ändringar som behöver köras. Annars hoppar den över det och gör bara ändringar i Appen.
 
-Detta kör bara Ansible-delen för att konfigurera mjukvara och inställningar på de befintliga VM:arna.
 
-
+## Lösningsbeskrivning och Tankar
 Jag hade först byggt en lösning via den gamla tutorial-metoden med Azure CLI och hade som plan att göra ett gitrepo med Bicep och Cloud-Init som komplement. Men efter kursen med Ansible gjorde jag om hela lösningen, för jag vill ha det idempotent. 
+
 Jag fastnade ganska länge i deploy.sh skripet, som är det initiala skripet som sätter upp grunden för både infrastruktur (bicep) och configuration (ansible).
-Hade problem med att GH Actions väntade på att runnern skulle startas, men fick tips av Lars om att det kanske var fel användare. Det var nog inte hela problemet. Jag SSH:ade in i app-servern och kollade lite, den verkar inte ha slutfört installationen.
-Provar att skapa en PAT och lägger in den i GH Secrets för att sen kunna skapa RUNNER_TOKEN dynamiskt i GH WOrkflow.
+
+Hade problem med att GH Actions väntade på att runnern skulle startas, vilket ger aningar om att allt kanske inte gick rätt i Ansible processen till, speciellt med Runnern. Fick tips av Lars om att det kanske var fel användare som används. Det var nog inte hela problemet. Jag SSH:ade in i app-servern och kollade lite, den verkar inte ha slutfört installationen, många saker saknades. Så började felsöka där. Skapade lite debugs och en log output med hjälp av AI, det ledde mig till att prova att skapa en PAT (Personal Access Token) med rättigheter för att låta Workflow hantera och skapa Runner Token. Lägger in den i GH Secrets för att sen kunna skapa RUNNER_TOKEN dynamiskt i GitHub Workflow.

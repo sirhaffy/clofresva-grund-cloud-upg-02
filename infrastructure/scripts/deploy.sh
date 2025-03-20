@@ -196,7 +196,7 @@ all:
     project_name: "${PROJECT_NAME}"
     storage_account: "${STORAGE_ACCOUNT}"
     blob_endpoint: "${BLOB_ENDPOINT}"
-    github_repo: "${GITHUB_REPO}"
+    REPO_NAME: "${REPO_NAME}"
     github_runner_token: "${RUNNER_TOKEN}"
 EOF
 

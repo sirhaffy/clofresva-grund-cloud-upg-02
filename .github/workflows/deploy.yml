@@ -18,7 +18,7 @@ env:
   PROJECT_NAME: ${{ secrets.PROJECT_NAME }}
   RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
   LOCATION: northeurope
-  GITHUB_REPO: ${{ secrets.REPO_GITHUB }}
+  REPO_NAME: ${{ secrets.REPO_GITHUB }}
   RUNNER_TOKEN: ${{ secrets.RUNNER_TOKEN }}
 
 jobs:
@@ -59,7 +59,10 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       BASTION_IP: ${{ steps.outputs.outputs.BASTION_IP }}
+      PROXY_IP: ${{ steps.outputs.outputs.PROXY_IP }}
       APP_IP: ${{ steps.outputs.outputs.APP_IP }}
+      STORAGE_ACCOUNT: ${{ steps.outputs.outputs.STORAGE_ACCOUNT }}
+      BLOB_ENDPOINT: ${{ steps.outputs.outputs.BLOB_ENDPOINT }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -90,7 +93,7 @@ jobs:
           echo "Getting fresh runner token..."
           TOKEN=$(curl -X POST -H "Authorization: token ${{ secrets.PAT_TOKEN }}" \
             -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/${{ env.GITHUB_REPO }}/actions/runners/registration-token \
+            https://api.github.com/repos/${{ env.REPO_NAME }}/actions/runners/registration-token \
             | jq -r .token)
 
           echo "RUNNER_TOKEN=$TOKEN" >> $GITHUB_ENV
@@ -135,7 +138,10 @@ jobs:
 
           # Set outputs for other jobs
           echo "BASTION_IP=$BASTION_IP" >> $GITHUB_OUTPUT
+          echo "PROXY_IP=$PROXY_IP" >> $GITHUB_OUTPUT
           echo "APP_IP=$APP_IP" >> $GITHUB_OUTPUT
+          echo "STORAGE_ACCOUNT=$STORAGE_ACCOUNT" >> $GITHUB_OUTPUT
+          echo "BLOB_ENDPOINT=$BLOB_ENDPOINT" >> $GITHUB_OUTPUT
 
       - name: Run Ansible (Only App Server Setup)
         if: ${{ github.event.inputs.skip_ansible != 'true' }}
@@ -154,8 +160,8 @@ jobs:
               project_name: ${{ env.PROJECT_NAME }}
               storage_account: ${{ env.STORAGE_ACCOUNT }}
               blob_endpoint: ${{ env.BLOB_ENDPOINT }}
-              github_repo: ${{ env.GITHUB_REPO }}
-              github_runner_token: ${{ env.RUNNER_TOKEN }}  # Nu med den dynamiskt genererade tokenen
+              REPO_NAME: ${{ env.REPO_NAME }}
+              github_runner_token: ${{ env.RUNNER_TOKEN }}
           EOF
 
           echo "Waiting for SSH to be available..."
@@ -191,9 +197,25 @@ jobs:
 
   deploy-to-server:
     name: Deploy to Server
-    needs: deploy-app
-    runs-on: ubuntu-latest  # Ändra från self-hosted till ubuntu-latest
+    needs: [deploy-app, deploy-infrastructure]
+    runs-on: ubuntu-latest
+    env:
+      BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP }}
+      APP_IP: ${{ needs.deploy-infrastructure.outputs.APP_IP }}
     steps:
+      - name: Check environment variables
+        run: |
+          echo "Bastion IP: ${{ env.BASTION_IP }}"
+          echo "App IP: ${{ env.APP_IP }}"
+
+          # Fail early if variables are missing
+          if [ -z "${{ env.BASTION_IP }}" ] || [ -z "${{ env.APP_IP }}" ]; then
+            # If infrastructure was skipped, use the hardcoded values
+            echo "Using hardcoded values from Azure infrastructure..."
+            echo "BASTION_IP=137.116.232.168" >> $GITHUB_ENV
+            echo "APP_IP=10.0.2.4" >> $GITHUB_ENV
+          fi
+
       - name: Set up SSH keys
         run: |
           mkdir -p ~/.ssh
@@ -206,6 +228,10 @@ jobs:
           name: webapp
           path: ./webapp-files
 
+      - name: Create target directory on remote
+        run: |
+          ssh -o StrictHostKeyChecking=no -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.BASTION_IP }}" -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.APP_IP }} "sudo mkdir -p /tmp/webapp && sudo chown azureuser:azureuser /tmp/webapp"
+
       - name: Deploy to app server via SSH
         run: |
           # Kopiera filerna till app-server via bastion
@@ -213,16 +239,9 @@ jobs:
 
           # Flytta filer och sätt rättigheter på app-server
           ssh -o StrictHostKeyChecking=no -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.BASTION_IP }}" -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.APP_IP }} "
+            sudo mkdir -p /var/www/app
             sudo cp -r /tmp/webapp/* /var/www/app/
             sudo chown -R www-data:www-data /var/www/app
             sudo systemctl restart webapp.service
             echo 'Application deployed and service restarted!'
           "
-
-      - name: Set proper permissions
-        run: |
-          sudo chown -R www-data:www-data /var/www/app
-
-      - name: Restart App Service
-        run: |
-          sudo systemctl restart webapp.service
