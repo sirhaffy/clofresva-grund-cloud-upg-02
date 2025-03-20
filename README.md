@@ -25,6 +25,8 @@ När jag skapar alla resurser i Azure så har jag lagt in dem i en Resource Grou
 
 Jag skulle gärna koppla på Azure Keyvaults för att spara mina hemligheter, får kolla på det längre fram.
 
+Jag skapade först en ny dotnet app och städade den från bootstrap mm och la in SCSS. Men insåg att jag sparar en massa tid på att återavnända MVC appen vi skapat i kursen. Så jag tog den och la in den i mitt repo.
+
 
 
 
