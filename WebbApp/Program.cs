@@ -32,39 +32,54 @@ builder.Services.AddFluentValidationAutoValidation();
 string repoType = builder.Configuration.GetValue<string>("SUBSCRIBER_REPOSITORY", "inmemory").ToLowerInvariant();
 logger.LogInformation($"Using subscriber repository type: {repoType}");
 
-// Registrera repository enligt vald typ
+// Around line 35-40 in Program.cs
 if (repoType == "mongo" || repoType == "cosmos")
 {
-    // Beroende på implementation kan du välja olika anslutningssträngar och databasnamn.
-    string connectionStringKey = repoType == "mongo" ? "MONGODB:CONNECTIONSTRING" : "COSMOSDB:CONNECTIONSTRING";
-    string databaseNameKey = repoType == "mongo" ? "MONGODB:DATABASE" : "COSMOSDB:DATABASE";
+    // Get connection string from configuration
+    string connectionString = builder.Configuration.GetSection("MongoDB:ConnectionString").Value;
 
-    var connectionString = builder.Configuration.GetConnectionString("MongoDB");
-    if (!string.IsNullOrEmpty(connectionString))
+    if (string.IsNullOrEmpty(connectionString))
     {
-        builder.Services.AddSingleton<IMongoClient>(new MongoClient(connectionString));
-        builder.Services.AddScoped(provider =>
-            provider.GetRequiredService<IMongoClient>().GetDatabase("myDatabase"));
+        // Fallback to environment variable or connection strings section
+        connectionString = builder.Configuration.GetConnectionString("MongoDB");
     }
 
-    // Registrera Mongo-klient och databas (gemensamt för Mongo och Cosmos)
-    builder.Services.AddSingleton<IMongoClient>(new MongoClient(connectionString));
-    builder.Services.AddSingleton<IMongoDatabase>(sp =>
+    if (string.IsNullOrEmpty(connectionString))
     {
-        var client = sp.GetRequiredService<IMongoClient>();
-        string dbName = builder.Configuration[databaseNameKey] ?? (repoType == "mongo" ? "default_mongo_db" : "default_cosmos_db");
-        return client.GetDatabase(dbName);
-    });
-
-    if (repoType == "mongo")
-    {
-        builder.Services.AddSingleton<ISubscriberRepository, MongoDbSubscriberRepository>();
-        logger.LogInformation("Registrerar MongoDbSubscriberRepository.");
+        logger.LogWarning("MongoDB connection string not found. Using InMemory repository instead.");
+        builder.Services.AddSingleton<ISubscriberRepository, InMemorySubscriberRepository>();
     }
-    else // repoType == "cosmos"
+    else
     {
-        builder.Services.AddSingleton<ISubscriberRepository, CosmosDbSubscriberRepository>();
-        logger.LogInformation("Registrerar CosmosDbSubscriberRepository.");
+        logger.LogInformation("Using MongoDB connection string. Length: {Length}", connectionString.Length);
+        try
+        {
+            // Register MongoDB client and services
+            builder.Services.AddSingleton<IMongoClient>(new MongoClient(connectionString));
+            builder.Services.AddSingleton<IMongoDatabase>(sp =>
+            {
+                var client = sp.GetRequiredService<IMongoClient>();
+                string dbName = builder.Configuration["MongoDB:DatabaseName"] ?? "cloudsoft";
+                return client.GetDatabase(dbName);
+            });
+
+            // Register the correct repository type
+            if (repoType == "mongo")
+            {
+                builder.Services.AddSingleton<ISubscriberRepository, MongoDbSubscriberRepository>();
+                logger.LogInformation("Registered MongoDbSubscriberRepository.");
+            }
+            else // repoType == "cosmos"
+            {
+                builder.Services.AddSingleton<ISubscriberRepository, CosmosDbSubscriberRepository>();
+                logger.LogInformation("Registered CosmosDbSubscriberRepository.");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to configure MongoDB. Using InMemory repository instead.");
+            builder.Services.AddSingleton<ISubscriberRepository, InMemorySubscriberRepository>();
+        }
     }
 }
 else if (repoType == "inmemory")

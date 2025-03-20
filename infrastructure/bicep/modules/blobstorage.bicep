@@ -14,6 +14,8 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2021-06-01' = {
   kind: 'StorageV2'
   properties: {
     accessTier: 'Hot'
+    allowBlobPublicAccess: true
+    allowSharedKeyAccess: true
     supportsHttpsTrafficOnly: true
     minimumTlsVersion: 'TLS1_2'
     networkAcls: {
@@ -40,7 +42,7 @@ resource container 'Microsoft.Storage/storageAccounts/blobServices/containers@20
   parent: blobService
   name: 'appdata'
   properties: {
-    publicAccess: 'None'
+    publicAccess: 'Container'
   }
 }
 

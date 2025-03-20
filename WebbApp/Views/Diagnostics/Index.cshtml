@@ -1,0 +1,26 @@
+<!-- WebbApp/Views/Diagnostics/Index.cshtml -->
+@model MVC_TestApp.Controllers.DiagnosticsViewModel
+
+@{
+    ViewData["Title"] = "Diagnostics";
+}
+
+<h1>System Diagnostics</h1>
+
+<div class="card mb-4">
+    <div class="card-header">Repository Configuration</div>
+    <div class="card-body">
+        <p>Repository Type: <strong>@Model.RepositoryType</strong></p>
+        <p>MongoDB Connection String: <strong>@(Model.HasMongoConnectionString ? "Configured" : "Missing")</strong> (Length: @Model.MongoConnectionStringLength)</p>
+        <p>Subscriber Count: <strong>@Model.SubscriberCount</strong></p>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">Blob Storage Configuration</div>
+    <div class="card-body">
+        <p>Storage Account Name: <strong>@Model.StorageAccountName</strong></p>
+        <p>Blob Endpoint: <strong>@Model.BlobEndpoint</strong></p>
+        <p>Using Azure Storage: <strong>@Model.FeatureFlagUseAzureStorage</strong></p>
+    </div>
+</div>

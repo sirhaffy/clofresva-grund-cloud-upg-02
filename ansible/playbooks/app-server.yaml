@@ -114,16 +114,19 @@
             "AllowedHosts": "*",
             "Storage": {
               "AccountName": "{{ storage_account | default('storage-account-name') }}",
-              "BlobEndpoint": "{{ blob_endpoint | default('https://example.blob.core.windows.net/') }}"
+              "BlobEndpoint": "{{ blob_endpoint | default('https://example.blob.core.windows.net/') }}",
+              "ContainerName": "{{ container_name | default('appdata') }}"
             },
             "MongoDB": {
-              "ConnectionString": ""
+              "ConnectionString": "{{ mongodb_connection_string | default('') }}"
             },
             "AppSettings": {
               "Environment": "Production"
+            },
+            "FEATUREFLAGS": {
+              "USEAZURESTORAGE": true
             }
-          }
-        dest: /var/www/app/appsettings.json
+          }    dest: /var/www/app/appsettings.json
         owner: www-data
         group: www-data
         mode: '0644'
