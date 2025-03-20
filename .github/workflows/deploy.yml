@@ -113,6 +113,7 @@ jobs:
             location=${{ env.LOCATION }}
           deploymentName: main
 
+      # I Get Deployment Outputs-steget i deploy.yml
       - name: Get Deployment Outputs
         id: outputs
         run: |
@@ -128,20 +129,11 @@ jobs:
           APP_IP=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.appServerPrivateIp.value')
           STORAGE_ACCOUNT=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.storageAccountName.value')
           BLOB_ENDPOINT=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.blobEndpoint.value')
+          MONGODB_CONNECTION_STRING=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.dotNetMongoConnectionString.value // ""')
 
-          # Set GitHub environment variables
-          echo "BASTION_IP=$BASTION_IP" >> $GITHUB_ENV
-          echo "PROXY_IP=$PROXY_IP" >> $GITHUB_ENV
-          echo "APP_IP=$APP_IP" >> $GITHUB_ENV
-          echo "STORAGE_ACCOUNT=$STORAGE_ACCOUNT" >> $GITHUB_ENV
-          echo "BLOB_ENDPOINT=$BLOB_ENDPOINT" >> $GITHUB_ENV
-
-          # Set outputs for other jobs
-          echo "BASTION_IP=$BASTION_IP" >> $GITHUB_OUTPUT
-          echo "PROXY_IP=$PROXY_IP" >> $GITHUB_OUTPUT
-          echo "APP_IP=$APP_IP" >> $GITHUB_OUTPUT
-          echo "STORAGE_ACCOUNT=$STORAGE_ACCOUNT" >> $GITHUB_OUTPUT
-          echo "BLOB_ENDPOINT=$BLOB_ENDPOINT" >> $GITHUB_OUTPUT
+          # Set environment variables and outputs
+          echo "MONGODB_CONNECTION_STRING=$MONGODB_CONNECTION_STRING" >> $GITHUB_ENV
+          echo "MONGODB_CONNECTION_STRING=$MONGODB_CONNECTION_STRING" >> $GITHUB_OUTPUT
 
       - name: Run Ansible (Only App Server Setup)
         if: ${{ github.event.inputs.skip_ansible != 'true' }}

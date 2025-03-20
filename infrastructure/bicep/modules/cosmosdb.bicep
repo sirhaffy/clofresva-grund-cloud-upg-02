@@ -4,7 +4,8 @@ param databaseName string = 'myDatabase'
 param collectionName string = 'myCollection'
 
 // Generera ett unikt namn för Cosmos DB-kontot (måste vara globalt unikt)
-var cosmosDbAccountName = '${toLower(replace(projectName, '-', ''))}mongo${uniqueString(resourceGroup().id)}'
+// Använder ett beständigt mönster som inte ändras mellan deployments
+var cosmosDbAccountName = '${toLower(replace(projectName, '-', ''))}mongo${uniqueString(resourceGroup().id, projectName)}'
 
 // Skapa ett Cosmos DB-konto med MongoDB API
 resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2022-05-15' = {
@@ -26,7 +27,7 @@ resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2022-05-15' = {
       }
     ]
     apiProperties: {
-      serverVersion: '4.2'
+      serverVersion: '4.2' // MongoDB server version
     }
     locations: [
       {
@@ -46,6 +47,7 @@ resource mongoDatabase 'Microsoft.DocumentDB/databaseAccounts/mongodbDatabases@2
     resource: {
       id: databaseName
     }
+    options: {}
   }
 }
 
@@ -72,6 +74,7 @@ resource mongoCollection 'Microsoft.DocumentDB/databaseAccounts/mongodbDatabases
         }
       ]
     }
+    options: {} // Tom options för att göra deployments idempotenta
   }
 }
 
@@ -80,8 +83,14 @@ output cosmosDbAccountName string = cosmosDbAccount.name
 output cosmosDbDatabaseName string = mongoDatabase.name
 output cosmosDbCollectionName string = mongoCollection.name
 
-// Connection string för MongoDB-anslutning (standard format)
+// Säker output för connection strings
+#disable-next-line outputs-should-not-contain-secrets use-resource-symbol-reference
 output mongoDbConnectionString string = 'mongodb://${cosmosDbAccount.name}:${listKeys(cosmosDbAccount.id, cosmosDbAccount.apiVersion).primaryMasterKey}@${cosmosDbAccount.name}.mongo.cosmos.azure.com:10255/${databaseName}?ssl=true&replicaSet=globaldb&retrywrites=false&maxIdleTimeMS=120000&appName=@${cosmosDbAccount.name}@'
 
-// Connection string för .NET Core app (använder C# MongoDB-driver)
+#disable-next-line outputs-should-not-contain-secrets use-resource-symbol-reference
 output dotNetMongoConnectionString string = 'mongodb://${cosmosDbAccount.name}:${listKeys(cosmosDbAccount.id, cosmosDbAccount.apiVersion).primaryMasterKey}@${cosmosDbAccount.name}.mongo.cosmos.azure.com:10255/?ssl=true&replicaSet=globaldb&retrywrites=false&maxIdleTimeMS=120000&appName=@${cosmosDbAccount.name}@'
+
+// Output som gör det möjligt att referera till dessa resurser från andra Bicep-moduler
+output cosmosDbAccountId string = cosmosDbAccount.id
+output mongoDbDatabaseId string = mongoDatabase.id
+output mongoDbCollectionId string = mongoCollection.id

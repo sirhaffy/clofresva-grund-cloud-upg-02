@@ -21,6 +21,8 @@ Hade problem med att GH Actions väntade på att runnern skulle startas, vilket 
 
 <!-- Jag har också lagt in en Azure Dynamic Inventory som hämtar information om hostar från Azure. Detta är en stor fördel för att slippa hålla koll på IP-adresser och annat. -->
 
+Jag skulle gärna koppla på Azure Keyvaults för att spara mina hemligheter, får kolla på det längre fram.
+
 
 
 ## Folder Structure
