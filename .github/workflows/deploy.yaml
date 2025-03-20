@@ -186,27 +186,34 @@ jobs:
           # Set ANSIBLE_CONFIG environment variable
           echo "ANSIBLE_CONFIG=./ansible/ansible.cfg" >> $GITHUB_ENV
 
+      # Run Ansible to configure servers
       - name: Run Ansible (Only App Server Setup)
         if: ${{ github.event.inputs.skip_ansible != 'true' }}
         run: |
-          # Create fresh token for runner.
+          # Make sure we have a directory for the inventory
+          mkdir -p ./ansible/inventories
+
           echo "Getting fresh runner token and running app server setup (ansible)..."
-          cat > ./ansible/inventories/azure_rm.yaml << EOF
-          all:
-            hosts:
-              app_server:
-                ansible_host: ${{ env.APP_IP }}
-                ansible_user: azureuser
-                ansible_ssh_private_key_file: ~/.ssh/id_clofresvagcupg02
-                ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.BASTION_IP }}"'
-            vars:
-              project_name: ${{ env.PROJECT_NAME }}
-              storage_account: ${{ env.STORAGE_ACCOUNT }}
-              blob_endpoint: ${{ env.BLOB_ENDPOINT }}
-              github_repo: ${{ env.REPO_NAME }}
-              github_runner_token: ${{ env.RUNNER_TOKEN }}
-              mongodb_connection_string: ${{ env.MONGODB_CONNECTION_STRING }}
-          EOF
+
+          # Create inventory file with proper variable interpolation
+          echo "all:" > ./ansible/inventories/azure_rm.yaml
+          echo "  hosts:" >> ./ansible/inventories/azure_rm.yaml
+          echo "    app_server:" >> ./ansible/inventories/azure_rm.yaml
+          echo "      ansible_host: ${{ env.APP_IP }}" >> ./ansible/inventories/azure_rm.yaml
+          echo "      ansible_user: azureuser" >> ./ansible/inventories/azure_rm.yaml
+          echo "      ansible_ssh_private_key_file: ~/.ssh/id_clofresvagcupg02" >> ./ansible/inventories/azure_rm.yaml
+          echo "      ansible_ssh_common_args: '-o ProxyCommand=\"ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.BASTION_IP }}\"'" >> ./ansible/inventories/azure_rm.yaml
+          echo "  vars:" >> ./ansible/inventories/azure_rm.yaml
+          echo "    project_name: ${{ env.PROJECT_NAME }}" >> ./ansible/inventories/azure_rm.yaml
+          echo "    storage_account: ${{ env.STORAGE_ACCOUNT }}" >> ./ansible/inventories/azure_rm.yaml
+          echo "    blob_endpoint: ${{ env.BLOB_ENDPOINT }}" >> ./ansible/inventories/azure_rm.yaml
+          echo "    github_repo: ${{ env.REPO_NAME }}" >> ./ansible/inventories/azure_rm.yaml
+          echo "    github_runner_token: ${{ env.RUNNER_TOKEN }}" >> ./ansible/inventories/azure_rm.yaml
+          echo "    mongodb_connection_string: ${{ env.MONGODB_CONNECTION_STRING }}" >> ./ansible/inventories/azure_rm.yaml
+
+          # Debug - show the inventory file
+          echo "Generated inventory file:"
+          cat ./ansible/inventories/azure_rm.yaml
 
           echo "Waiting for SSH to be available..."
           sleep 60
@@ -272,25 +279,43 @@ jobs:
           echo "RUNNER_TOKEN=$TOKEN" >> $GITHUB_ENV
           echo "New token generated!"
 
+          - name: Debug environment variables
+          run: |
+            echo "Environment variables:"
+            echo "BASTION_IP: ${{ env.BASTION_IP }}"
+            echo "APP_IP: ${{ env.APP_IP }}"
+            echo "PROJECT_NAME: ${{ env.PROJECT_NAME }}"
+            echo "STORAGE_ACCOUNT: ${{ env.STORAGE_ACCOUNT }}"
+            echo "BLOB_ENDPOINT: ${{ env.BLOB_ENDPOINT }}"
+            echo "REPO_NAME: ${{ env.REPO_NAME }}"
+            echo "RUNNER_TOKEN length: ${#RUNNER_TOKEN}"
+            echo "MONGODB_CONNECTION_STRING (excerpt): ${MONGODB_CONNECTION_STRING:0:20}..."
+
       # Run Ansible to configure servers
       - name: Run Ansible
         run: |
           # Create ansible inventory
           echo "Creating Ansible inventory..."
+          mkdir -p ./ansible/inventories
+
           echo "all:" > ./ansible/inventories/azure_rm.yaml
           echo "  hosts:" >> ./ansible/inventories/azure_rm.yaml
           echo "    app_server:" >> ./ansible/inventories/azure_rm.yaml
-          echo "      ansible_host: ${APP_IP}" >> ./ansible/inventories/azure_rm.yaml
+          echo "      ansible_host: ${{ env.APP_IP }}" >> ./ansible/inventories/azure_rm.yaml
           echo "      ansible_user: azureuser" >> ./ansible/inventories/azure_rm.yaml
           echo "      ansible_ssh_private_key_file: ~/.ssh/id_clofresvagcupg02" >> ./ansible/inventories/azure_rm.yaml
-          echo "      ansible_ssh_common_args: '-o ProxyCommand=\"ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@${BASTION_IP}\"'" >> ./ansible/inventories/azure_rm.yaml
+          echo "      ansible_ssh_common_args: '-o ProxyCommand=\"ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@${{ env.BASTION_IP }}\"'" >> ./ansible/inventories/azure_rm.yaml
           echo "  vars:" >> ./ansible/inventories/azure_rm.yaml
-          echo "    project_name: ${PROJECT_NAME}" >> ./ansible/inventories/azure_rm.yaml
-          echo "    storage_account: ${STORAGE_ACCOUNT}" >> ./ansible/inventories/azure_rm.yaml
-          echo "    blob_endpoint: ${BLOB_ENDPOINT}" >> ./ansible/inventories/azure_rm.yaml
-          echo "    github_repo: ${REPO_NAME}" >> ./ansible/inventories/azure_rm.yaml
-          echo "    github_runner_token: ${RUNNER_TOKEN}" >> ./ansible/inventories/azure_rm.yaml
-          echo "    mongodb_connection_string: ${MONGODB_CONNECTION_STRING}" >> ./ansible/inventories/azure_rm.yaml
+          echo "    project_name: ${{ env.PROJECT_NAME }}" >> ./ansible/inventories/azure_rm.yaml
+          echo "    storage_account: ${{ env.STORAGE_ACCOUNT }}" >> ./ansible/inventories/azure_rm.yaml
+          echo "    blob_endpoint: ${{ env.BLOB_ENDPOINT }}" >> ./ansible/inventories/azure_rm.yaml
+          echo "    github_repo: ${{ env.REPO_NAME }}" >> ./ansible/inventories/azure_rm.yaml
+          echo "    github_runner_token: ${{ env.RUNNER_TOKEN }}" >> ./ansible/inventories/azure_rm.yaml
+          echo "    mongodb_connection_string: ${{ env.MONGODB_CONNECTION_STRING }}" >> ./ansible/inventories/azure_rm.yaml
+
+          # Debug - show the inventory file
+          echo "Generated inventory file:"
+          cat ./ansible/inventories/azure_rm.yaml
 
           echo "Waiting for SSH to be available..."
           sleep 60
