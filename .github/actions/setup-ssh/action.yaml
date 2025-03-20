@@ -1,0 +1,20 @@
+# .github/actions/setup-ssh/action.yml
+name: 'Setup SSH'
+description: 'Configures SSH keys and settings'
+runs:
+  using: "composite"
+  steps:
+    - name: Set up SSH keys
+      shell: bash
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_clofresvagcupg02
+        chmod 600 ~/.ssh/id_clofresvagcupg02
+
+        # Disable strict host key checking
+        cat > ~/.ssh/config << 'EOL'
+        Host *
+          StrictHostKeyChecking no
+          UserKnownHostsFile=/dev/null
+        EOL
+        chmod 600 ~/.ssh/config
