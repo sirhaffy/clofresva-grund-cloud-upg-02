@@ -6,14 +6,12 @@
     }
   },
   "AllowedHosts": "*",
-  "Storage": {
-    "AccountName": "{{ storage_account | default('storage-account-name') }}",
-    "BlobEndpoint": "{{ blob_endpoint | default('https://example.blob.core.windows.net/') }}"
+  "MongoDb": {
+    "ConnectionString": "{{ mongodb_connection_string | default('') }}",
+    "DatabaseName": "{{ cosmos_database_name | default('your-database') }}",
+    "SubscribersCollectionName": "{{ cosmos_collection_name | default('subscribers') }}"
   },
-  "MongoDB": {
-    "ConnectionString": "{{ mongodb_connection_string | default('') }}"
-  },
-  "AppSettings": {
-    "Environment": "{{ app_environment | default('Production') }}"
+  "AzureBlob": {
+    "ContainerUrl": "{{ blob_endpoint | default('https://storage-account-name.blob.core.windows.net/container-name') }}"
   }
 }
