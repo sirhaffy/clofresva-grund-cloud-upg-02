@@ -64,16 +64,18 @@ jobs:
 
           # Check for infrastructure changes
           if grep -q "infrastructure/" changed_files.txt || \
-             grep -q "bicep/" changed_files.txt || \
-             grep -q "\.bicep$" changed_files.txt; then
+            grep -q "bicep/" changed_files.txt || \
+            grep -q "\.bicep$" changed_files.txt; then
             bicep_changes=true
           fi
 
           # Check for Ansible changes
           if grep -q "ansible/" changed_files.txt || \
-             grep -q "playbooks/" changed_files.txt || \
-             grep -q "roles/" changed_files.txt || \
-             grep -q "templates/" changed_files.txt; then
+            grep -q "playbooks/" changed_files.txt || \
+            grep -q "roles/" changed_files.txt || \
+            grep -q "templates/" changed_files.txt || \
+            grep -q "mongodb" changed_files.txt || \
+            grep -q "cosmos" changed_files.txt; then
             ansible_changes=true
           fi
 
@@ -91,10 +93,9 @@ jobs:
           echo "run_webapp=$webapp_changes" >> $GITHUB_OUTPUT
 
           # Determine if any changes were detected
-          if [[ "$bicep_changes" == "true" || "$ansible_changes" == "true" || "$webapp_changes" == "true" ]]; then
-            echo "changes_detected=true" >> $GITHUB_OUTPUT
-          else
-            echo "changes_detected=false" >> $GITHUB_OUTPUT
+          if [ "$bicep_changes" = "true" ] && (grep -q "mongodb" changed_files.txt || grep -q "cosmos" changed_files.txt); then
+            ansible_changes=true
+            echo "MongoDB/CosmosDB changes detected, will run Ansible"
           fi
 
           # Create a change summary
@@ -110,6 +111,16 @@ jobs:
           echo "================================================================="
 
           cat changed_files.txt
+
+          # Add in the check-changes job
+
+      - name: Debug changes
+        run: |
+          echo "Files changed that caused infrastructure updates:"
+          grep -E "infrastructure/|bicep/|\.bicep$" changed_files.txt || echo "No matching infrastructure files"
+
+          echo "Files changed that caused ansible updates:"
+          grep -E "ansible/|playbooks/|roles/|templates/|mongodb|cosmos" changed_files.txt || echo "No matching ansible files"
 
   # Check if dotnet app files were changed.
   deploy-infrastructure:
@@ -227,7 +238,13 @@ jobs:
   configure-servers:
     name: Configure Servers with Ansible
     needs: [check-changes, deploy-infrastructure]
-    if: ${{ needs.check-changes.outputs.run_ansible == 'true' || (needs.check-changes.outputs.run_bicep == 'true' && needs.deploy-infrastructure.result == 'success') }}
+    if: ${{
+        always() &&
+        (needs.check-changes.outputs.run_ansible == 'true' ||
+        needs.check-changes.outputs.run_bicep == 'true' ||
+        github.event_name == 'workflow_dispatch') &&
+        (needs.deploy-infrastructure.result == 'success' || needs.deploy-infrastructure.result == 'skipped')
+      }}
     runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP }}
