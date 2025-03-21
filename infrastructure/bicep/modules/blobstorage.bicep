@@ -14,9 +14,9 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2021-06-01' = {
   kind: 'StorageV2'
   properties: {
     accessTier: 'Hot'
+    supportsHttpsTrafficOnly: true
     allowBlobPublicAccess: true
     allowSharedKeyAccess: true
-    supportsHttpsTrafficOnly: true
     minimumTlsVersion: 'TLS1_2'
     networkAcls: {
       bypass: 'AzureServices'

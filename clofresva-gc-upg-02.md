@@ -38,7 +38,7 @@ Hade glömt öppna upp blobstorage för public, så fick ändra på det i Biceps
 
 Fick också ändra lite så den hämtade från rätt container i BlobStorage. Och använder faöllback till local storage /image mappen, med en flagga.
 
-Har problem med att sajten tas ner om flödet inte fungerar.. 
+Har problem med att sajten tas ner om flödet inte fungerar.. La in 'continue-on-error: true' och en flagga om det failar. Då använder den förra versionen av appen i stället och i .Net så finns det en timestamp så man vet vilken version som körs.
 
 
 
@@ -136,11 +136,11 @@ PAT_TOKEN=<Skapa en GitHub PAT och lägg in den här.>
 SSH_KEY_PATH=~/.ssh/clofresva_gc_upg02_azure_key
 EOF
 ```
+
 * PAT behöver Administration, Action och Metadata rättigheter.
 
-// TODO: Frågor till Lars: Hur gör man när man är fler användare som ska kunna köra Azure Bicep?
-5. Konfigurera dina Azure-autentiseringsuppgifter och prenumeration.
-6. Kör deployment-skripten för att konfigurera infrastrukturen och applikationen.
+1. Konfigurera dina Azure-autentiseringsuppgifter och prenumeration.
+2. Kör deployment-skripten för att konfigurera infrastrukturen och applikationen.
 
 ### GitHub Actions Secrets
 Vi har också dessa GitHub Secrets variabler:

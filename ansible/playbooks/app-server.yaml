@@ -118,11 +118,10 @@
               "ContainerName": "{{ container_name | default('appdata') }}"
             },
             "MongoDB": {
-              "ConnectionString": "{{ mongodb_connection_string | default('') }}"
+              "ConnectionString": "{{ mongodb_connection_string | default('') }}",
+              "DatabaseName": "cloudsoft"
             },
-            "AppSettings": {
-              "Environment": "Production"
-            },
+            "SUBSCRIBER_REPOSITORY": "cosmos",
             "FEATUREFLAGS": {
               "USEAZURESTORAGE": true
             }

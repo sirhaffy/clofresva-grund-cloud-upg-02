@@ -36,20 +36,23 @@ repoType ??= "inmemory";
 
 if (repoType == "mongo" || repoType == "cosmos")
 {
-    // Get connection string from configuration
+    // First attempt to get connection string from configuration - do this ONCE
     string? connectionString = builder.Configuration.GetSection("MongoDB:ConnectionString").Value;
 
-    logger.LogInformation("MongoDB connection string set: {IsSet}, Length: {Length}",
+    // Log connection string status (for debugging)
+    logger.LogInformation("MongoDB connection string from config: {IsSet}, Length: {Length}",
         !string.IsNullOrEmpty(connectionString),
         connectionString?.Length ?? 0);
 
-    logger.LogInformation("Using MongoDB repository");
-    builder.Services.AddSingleton<IMongoClient>(new MongoClient(connectionString));
-
+    // If empty, try fallback sources
     if (string.IsNullOrEmpty(connectionString))
     {
-        // Fallback to environment variable or connection strings section
+        // Try connection strings section
         connectionString = builder.Configuration.GetConnectionString("MongoDB");
+
+        // Log fallback attempt
+        if (!string.IsNullOrEmpty(connectionString))
+            logger.LogInformation("Found MongoDB connection string in ConnectionStrings section");
     }
 
     if (string.IsNullOrEmpty(connectionString))
@@ -108,8 +111,24 @@ logger.LogInformation($"FEATUREFLAGS: USEAZURESTORAGE = {useAzureStorage}");
 // If useAzureStorage is true, register AzureBlobImageService, otherwise LocalImageService.
 if (useAzureStorage)
 {
-    logger.LogInformation("Using Azure Blob Storage for images...");
-    builder.Services.AddSingleton<IImageService, AzureBlobImageService>();
+    // Check if we have required configuration
+    string storageAccount = builder.Configuration["Storage:AccountName"] ?? "";
+    string blobEndpoint = builder.Configuration["Storage:BlobEndpoint"] ?? "";
+
+    if (string.IsNullOrEmpty(storageAccount) || string.IsNullOrEmpty(blobEndpoint))
+    {
+        logger.LogWarning("Azure Storage settings incomplete. Using local image storage instead.");
+        logger.LogWarning($"StorageAccount: {(string.IsNullOrEmpty(storageAccount) ? "missing" : "present")}");
+        logger.LogWarning($"BlobEndpoint: {(string.IsNullOrEmpty(blobEndpoint) ? "missing" : "present")}");
+        builder.Services.AddSingleton<IImageService, LocalImageService>();
+    }
+    else
+    {
+        logger.LogInformation("Using Azure Blob Storage for images...");
+        logger.LogInformation($"Storage Account: {storageAccount}");
+        logger.LogInformation($"Blob Endpoint: {blobEndpoint}");
+        builder.Services.AddSingleton<IImageService, AzureBlobImageService>();
+    }
 }
 else
 {
@@ -120,6 +139,17 @@ else
 builder.Services.AddControllersWithViews();
 
 var app = builder.Build();
+
+// Create deploy timestamp file for tracking deployments
+try
+{
+    File.WriteAllText("deploy-timestamp.txt", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"));
+    logger.LogInformation("Created deployment timestamp file");
+}
+catch (Exception ex)
+{
+    logger.LogWarning(ex, "Failed to create deployment timestamp file");
+}
 
 if (!app.Environment.IsDevelopment())
 {
