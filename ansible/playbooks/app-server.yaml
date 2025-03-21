@@ -54,7 +54,12 @@
     - name: Decode MongoDB connection string
       set_fact:
         mongodb_connection_string: "{{ mongodb_connection_string_base64 | b64decode }}"
-      when: mongodb_connection_string_base64 is defined
+      when: mongodb_connection_string_base64 is defined and mongodb_connection_string_base64 != ''
+      no_log: true  # Don't log the actual connection string
+
+    - name: Debug MongoDB connection string length
+      debug:
+        msg: "MongoDB connection string length: {{ mongodb_connection_string | length if mongodb_connection_string is defined else 0 }}"
 
     # Fallback if not provided
     - name: Set empty MongoDB connection string if not provided

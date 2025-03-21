@@ -167,58 +167,28 @@ jobs:
           deploymentName: main
 
       - name: Get Deployment Outputs
-        id: outputs
         run: |
-          echo "Getting deployment outputs..."
-          DEPLOYMENT_OUTPUTS=$(az deployment group show \
+          # Get outputs like storage account, blob endpoint, etc.
+
+          # Get MongoDB connection string with proper error handling
+          echo "Getting MongoDB connection string..."
+          MONGODB_CONNECTION_STRING=$(az deployment group show \
             --resource-group ${{ env.RESOURCE_GROUP }} \
-            --name "main" \
-            --query properties.outputs -o json)
+            --name main \
+            --query "properties.outputs.dotNetMongoConnectionString.value" \
+            --output tsv)
 
-          # Extract values from outputs
-          BASTION_IP=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.bastionHostIp.value')
-          PROXY_IP=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.reverseProxyIp.value')
-          APP_IP=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.appServerPrivateIp.value')
-          STORAGE_ACCOUNT=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.storageAccountName.value')
-          BLOB_ENDPOINT=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.blobEndpoint.value')
+          # Print length for debugging (don't print the actual string)
+          echo "MongoDB connection string length: ${#MONGODB_CONNECTION_STRING}"
 
-          # Get the MongoDB connection string with proper error handling
-          MONGODB_CONNECTION_STRING=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.dotNetMongoConnectionString.value // ""')
-
-          # Base64 encode the MongoDB connection string to avoid shell escaping issues
-          if [ -n "$MONGODB_CONNECTION_STRING" ]; then
-            echo "MongoDB connection string found (length: ${#MONGODB_CONNECTION_STRING})"
+          # Base64 encode it
+          if [ -n "$MONGODB_CONNECTION_STRING" ] && [ ${#MONGODB_CONNECTION_STRING} -gt 20 ]; then
             MONGODB_CONNECTION_STRING_B64=$(echo -n "$MONGODB_CONNECTION_STRING" | base64 -w0)
-            # Set as output for use in other jobs
-            echo "MONGODB_CONNECTION_STRING_B64=$MONGODB_CONNECTION_STRING_B64" >> $GITHUB_OUTPUT
+            echo "MONGODB_CONNECTION_STRING_BASE64=$MONGODB_CONNECTION_STRING_B64" >> $GITHUB_ENV
+            echo "Encoded MongoDB connection string (first 10 chars): ${MONGODB_CONNECTION_STRING_B64:0:10}..."
           else
-            echo "Warning: MongoDB connection string is empty or not found"
-            echo "MONGODB_CONNECTION_STRING_B64=" >> $GITHUB_OUTPUT
+            echo "Warning: Invalid MongoDB connection string, length: ${#MONGODB_CONNECTION_STRING}"
           fi
-
-          # Set outputs for other jobs to use
-          echo "BASTION_IP=$BASTION_IP" >> $GITHUB_OUTPUT
-          echo "APP_IP=$APP_IP" >> $GITHUB_OUTPUT
-          echo "STORAGE_ACCOUNT=$STORAGE_ACCOUNT" >> $GITHUB_OUTPUT
-          echo "BLOB_ENDPOINT=$BLOB_ENDPOINT" >> $GITHUB_OUTPUT
-          echo "MONGODB_CONNECTION_STRING=$MONGODB_CONNECTION_STRING" >> $GITHUB_OUTPUT
-
-          # Also set environment variables for current job
-          echo "BASTION_IP=$BASTION_IP" >> $GITHUB_ENV
-          echo "APP_IP=$APP_IP" >> $GITHUB_ENV
-          echo "STORAGE_ACCOUNT=$STORAGE_ACCOUNT" >> $GITHUB_ENV
-          echo "BLOB_ENDPOINT=$BLOB_ENDPOINT" >> $GITHUB_ENV
-          echo "MONGODB_CONNECTION_STRING=$MONGODB_CONNECTION_STRING" >> $GITHUB_ENV
-          echo "MONGODB_CONNECTION_STRING_B64=$MONGODB_CONNECTION_STRING_B64" >> $GITHUB_ENV
-
-          # Print safe debug output (no tokens or connection strings)
-          echo "Retrieved the following outputs:"
-          echo "- Bastion IP: $BASTION_IP"
-          echo "- App Server IP: $APP_IP"
-          echo "- Storage Account: $STORAGE_ACCOUNT"
-          echo "- Blob Endpoint: $BLOB_ENDPOINT"
-          echo "- MongoDB Connection String: [REDACTED]"
-          echo "- MongoDB Connection String B64: [ENCODED]"
 
       - name: Ensure Ansible config exists
         run: |

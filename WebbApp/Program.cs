@@ -57,9 +57,9 @@ if (repoType == "mongo" || repoType == "cosmos")
             logger.LogInformation("Found MongoDB connection string in ConnectionStrings section");
     }
 
-    if (string.IsNullOrEmpty(connectionString))
+    if (string.IsNullOrEmpty(connectionString) || connectionString.Contains("YOUR_PASSWORD_HERE"))
     {
-        logger.LogWarning("MongoDB connection string not found. Using InMemory repository instead.");
+        logger.LogWarning("MongoDB connection string not found or contains placeholder. Using InMemory repository instead.");
         builder.Services.AddSingleton<ISubscriberRepository, InMemorySubscriberRepository>();
     }
     else
