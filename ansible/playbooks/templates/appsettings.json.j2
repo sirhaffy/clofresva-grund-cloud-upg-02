@@ -12,12 +12,12 @@
     "ContainerName": "appdata"
   },
   "MongoDB": {
-    "ConnectionString": "{{ mongodb_connection_string | default('') }}",
+    "ConnectionString": "{{ mongodb_connection_string | default('') | replace('\\', '\\\\') | replace('"', '\\"') }}",
     "DatabaseName": "cloudsoft",
     "CollectionName": "subscribers"
   },
-  "SUBSCRIBER_REPOSITORY": "{% if mongodb_connection_string | default('') == '' %}inmemory{% else %}cosmos{% endif %}",
+  "SUBSCRIBER_REPOSITORY": "{% if mongodb_connection_string | default('') != '' %}cosmos{% else %}inmemory{% endif %}",
   "FEATUREFLAGS": {
-    "USEAZURESTORAGE": true
+    "USEAZURESTORAGE": {% if storage_account | default('') != '' %}true{% else %}false{% endif %}
   }
 }

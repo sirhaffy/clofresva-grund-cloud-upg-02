@@ -147,34 +147,6 @@ else
     builder.Services.AddSingleton<IImageService, LocalImageService>();
 }
 
-// If useAzureStorage is true, register AzureBlobImageService, otherwise LocalImageService.
-if (useAzureStorage)
-{
-    // Check if we have required configuration
-    string storageAccount = builder.Configuration["Storage:AccountName"] ?? "";
-    string blobEndpoint = builder.Configuration["Storage:BlobEndpoint"] ?? "";
-
-    if (string.IsNullOrEmpty(storageAccount) || string.IsNullOrEmpty(blobEndpoint))
-    {
-        logger.LogWarning("Azure Storage settings incomplete. Using local image storage instead.");
-        logger.LogWarning($"StorageAccount: {(string.IsNullOrEmpty(storageAccount) ? "missing" : "present")}");
-        logger.LogWarning($"BlobEndpoint: {(string.IsNullOrEmpty(blobEndpoint) ? "missing" : "present")}");
-        builder.Services.AddSingleton<IImageService, LocalImageService>();
-    }
-    else
-    {
-        logger.LogInformation("Using Azure Blob Storage for images...");
-        logger.LogInformation($"Storage Account: {storageAccount}");
-        logger.LogInformation($"Blob Endpoint: {blobEndpoint}");
-        builder.Services.AddSingleton<IImageService, AzureBlobImageService>();
-    }
-}
-else
-{
-    logger.LogInformation("Using local image storage...");
-    builder.Services.AddSingleton<IImageService, LocalImageService>();
-}
-
 builder.Services.AddControllersWithViews();
 
 var app = builder.Build();

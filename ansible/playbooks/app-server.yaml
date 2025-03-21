@@ -113,6 +113,16 @@
         mode: '0644'
       notify: restart webapp service
 
+    # Set environment variables for app
+    - name: Set environment variables for app
+      lineinfile:
+        path: /etc/systemd/system/webapp.service
+        regexp: '^Environment=ASPNETCORE_ENVIRONMENT=.*'
+        line: 'Environment=ASPNETCORE_ENVIRONMENT=Production'
+        state: present
+      notify: restart webapp service
+
+
     # Create web app service
     - name: Create app service file
       copy:
