@@ -40,6 +40,21 @@ Fick också ändra lite så den hämtade från rätt container i BlobStorage. Oc
 
 Har problem med att sajten tas ner om flödet inte fungerar.. La in 'continue-on-error: true' och en flagga om det failar. Då använder den förra versionen av appen i stället och i .Net så finns det en timestamp så man vet vilken version som körs.
 
+Blob storage gick relativt lätt att lösa, men Cosmos DB kontot råkade jag slänga då jag hade två. Och jag råkade slänga fel. Då upptäckte jag att jag inte hade checks på om den fanns eller inte, så la in det.
+
+Blob Storage-implementeringen var relativt okomplicerad. Jag konfigurerade en Bicep-modul med rätt Storage Account-inställningar, säkerställde publik åtkomst genom allowBlobPublicAccess: true och publicAccess: 'Container' för appens bildhantering.
+
+Cosmos DB-implementeringen blev mer utmanande. Efter att oavsiktligt ha raderat fel Cosmos DB-konto upptäckte jag brister i min infrastruktur-som-kod-hantering. Jag förbättrade Bicep-modulen genom att:
+
+Lägga till kontroll för existerande resurser med existing-syntax
+Implementera transient state-hantering med deploymentScripts.bicep för att pausera deployments
+Konfigurera optimala index för MongoDB och lägga till databas/collection-skapande
+Implementera en failover-strategi i applikationen som växlar mellan cosmos och inmemory repository baserat på tillgänglighet
+
+GLÖM INTE SÄKERHETEN..
+
+
+
 
 
 ## TODO
