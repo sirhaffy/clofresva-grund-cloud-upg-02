@@ -34,6 +34,8 @@ builder.Services.AddFluentValidationAutoValidation();
 string? repoType = builder.Configuration.GetValue<string>("SUBSCRIBER_REPOSITORY", "inmemory")?.ToLowerInvariant();
 repoType ??= "inmemory";
 
+logger.LogInformation($"Repository type: {repoType}");
+
 if (repoType == "mongo" || repoType == "cosmos")
 {
     // First attempt to get connection string from configuration - do this ONCE
@@ -65,12 +67,18 @@ if (repoType == "mongo" || repoType == "cosmos")
         logger.LogInformation("Using MongoDB connection string. Length: {Length}", connectionString.Length);
         try
         {
+            logger.LogInformation("Configuring MongoDB client with connection string");
             // Register MongoDB client and services
-            builder.Services.AddSingleton<IMongoClient>(new MongoClient(connectionString));
+            builder.Services.AddSingleton<IMongoClient>(provider => {
+                logger.LogInformation("Creating MongoDB client with connection string");
+                return new MongoClient(connectionString);
+            });
+
             builder.Services.AddSingleton<IMongoDatabase>(sp =>
             {
                 var client = sp.GetRequiredService<IMongoClient>();
                 string dbName = builder.Configuration["MongoDB:DatabaseName"] ?? "cloudsoft";
+                logger.LogInformation("Getting MongoDB database: {DbName}", dbName);
                 return client.GetDatabase(dbName);
             });
 
@@ -78,12 +86,12 @@ if (repoType == "mongo" || repoType == "cosmos")
             if (repoType == "mongo")
             {
                 builder.Services.AddSingleton<ISubscriberRepository, MongoDbSubscriberRepository>();
-                logger.LogInformation("Registered MongoDbSubscriberRepository.");
+                logger.LogInformation("Registered MongoDbSubscriberRepository");
             }
             else // repoType == "cosmos"
             {
                 builder.Services.AddSingleton<ISubscriberRepository, CosmosDbSubscriberRepository>();
-                logger.LogInformation("Registered CosmosDbSubscriberRepository.");
+                logger.LogInformation("Registered CosmosDbSubscriberRepository");
             }
         }
         catch (Exception ex)
@@ -107,6 +115,37 @@ else
 // Read feature flag for image storage service from configuration.
 bool useAzureStorage = builder.Configuration.GetValue<bool>("FEATUREFLAGS:USEAZURESTORAGE", false);
 logger.LogInformation($"FEATUREFLAGS: USEAZURESTORAGE = {useAzureStorage}");
+
+// If useAzureStorage is true, register AzureBlobImageService, otherwise LocalImageService.
+if (useAzureStorage)
+{
+    // Check if we have required configuration
+    string storageAccount = builder.Configuration["Storage:AccountName"] ?? "";
+    string blobEndpoint = builder.Configuration["Storage:BlobEndpoint"] ?? "";
+
+    logger.LogInformation("Storage Account: {StorageAccount}", storageAccount);
+    logger.LogInformation("Blob Endpoint: {BlobEndpoint}", blobEndpoint);
+
+    if (string.IsNullOrEmpty(storageAccount) || string.IsNullOrEmpty(blobEndpoint))
+    {
+        logger.LogWarning("Azure Storage settings incomplete. Using local image storage instead.");
+        logger.LogWarning($"StorageAccount: {(string.IsNullOrEmpty(storageAccount) ? "missing" : "present")}");
+        logger.LogWarning($"BlobEndpoint: {(string.IsNullOrEmpty(blobEndpoint) ? "missing" : "present")}");
+        builder.Services.AddSingleton<IImageService, LocalImageService>();
+    }
+    else
+    {
+        logger.LogInformation("Using Azure Blob Storage for images...");
+        logger.LogInformation($"Storage Account: {storageAccount}");
+        logger.LogInformation($"Blob Endpoint: {blobEndpoint}");
+        builder.Services.AddSingleton<IImageService, AzureBlobImageService>();
+    }
+}
+else
+{
+    logger.LogInformation("Using local image storage...");
+    builder.Services.AddSingleton<IImageService, LocalImageService>();
+}
 
 // If useAzureStorage is true, register AzureBlobImageService, otherwise LocalImageService.
 if (useAzureStorage)
