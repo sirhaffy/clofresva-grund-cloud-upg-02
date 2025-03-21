@@ -12,6 +12,73 @@
 ## Lösningsbeskrivning och Tankar
 Jag hade först byggt en lösning via den gamla tutorial-metoden med Azure CLI och hade som plan att göra ett gitrepo med Bicep och Cloud-Init som komplement. Men efter kursen med Ansible gjorde jag om hela lösningen, för jag vill ha det idempotent. 
 
+Jag kan omöjligt förklara allt jag gjort för denna lösning, men jag skall försöka så gott jag kan. Jag har försökt att använda mig av Bicep för att skapa infrastrukturen och Ansible för att konfigurera servrarna. Jag har också använt mig av GitHub Actions för att automatisera deploymenten. Det krävde att jag skapade en PAT (Personal Access Token) för att kunna skapa en Runner Token dynamiskt i GitHub Workflow. //TODO: Har jag?? Jag har också använt mig av Azure Dynamic Inventory för att hämta information om hostar från Azure.
+
+Infrastrukturen hos Azure:
+- vNet (Virtual Network) 
+
+- Subnät
+  - Bastion Subnet
+  - App Subnet
+  - Reverse Proxy Subnet
+  - Blob Storage Subnet
+  - Cosmos DB Subnet
+
+- NSG (Network Security Group)
+  - Bastion NSG
+  - App NSG
+  - Reverse Proxy NSG
+  - Blob Storage NSG
+  - Cosmos DB NSG
+
+- VM (Virtual Machine)
+  - Bastion Server 
+    - Ubuntu Server - 24.2.0-LTS
+    - Publikt IP
+    - Öppen för SSH (22 och 2222)
+    - NSG (Network Security Group) som tillåter inkommande trafik från Internet.
+    - NSG som tillåter inkommande trafik från Bastion till App Server.
+    - NSG som tillåter inkommande trafik från Bastion till Reverse Proxy Server.
+    - NSG som tillåter inkommande trafik från Bastion till Blob Storage. ??
+    - NSG som tillåter inkommande trafik från Bastion till Cosmos DB. ??
+    - TODO: Fail2ban
+    - TODO: PortKnocking 
+- App Server
+  - 
+- Reverse Proxy Server
+
+- Azure Tjänster
+  - En Blob Storage
+    - Container för att lagra bilder
+    - Publik åtkomst
+  - En Cosmos DB
+    - MongoDB API
+    - Databas och Collection
+
+- Ansible 
+  - Konfigurerar servrarna
+  - App Server
+    - .NET Core
+    - Nginx
+    - Reverse Proxy
+    - WebbApp
+  - Reverse Proxy
+    - Nginx
+    - Reverse Proxy
+    - WebbApp
+  - Bastion
+    - Fail2ban
+    - PortKnocking
+  - Blob Storage
+    - Container för att lagra bilder
+  - Cosmos DB
+    - MongoDB API
+    - Databas och Collection
+  - 
+
+
+- GitHub Actions
+
 Jag fastnade ganska länge i deploy.sh skripet, som är det initiala skripet som sätter upp grunden för både infrastruktur (bicep) och configuration (ansible).
 
 Fastnade en stund med att få till så den använde en nyare version för Ubuntu. Tillslut förstod jag att det var olika "offer" för olika "sku" och att jag behövde en annan offer för att få en nyare version.

@@ -1,9 +1,8 @@
 ---
 - name: Configure App Server
   hosts: app_server
-  become: yes # Run tasks as root
+  become: yes # Run as root
   tasks:
-
     # Add .NET 9.0 backports repository
     - name: Add .NET 9.0 backports repository
       apt_repository:
@@ -12,36 +11,11 @@
       register: repo_added
       when: ansible_os_family == "Debian"
 
-    # Debug repository output
-    - name: Debug repository output
-      debug:
-        var: repo_added
-      when: ansible_os_family == "Debian"
-
     # Update apt cache
     - name: Update apt cache
       apt:
         update_cache: yes
       register: apt_updated
-      when: ansible_os_family == "Debian"
-
-    # Debug apt update output
-    - name: Debug apt update output
-      debug:
-        var: apt_updated
-      when: ansible_os_family == "Debian"
-
-    # List available .NET packages
-    - name: List available .NET packages
-      shell: apt-cache search dotnet | grep -i runtime
-      register: dotnet_packages
-      changed_when: false
-      when: ansible_os_family == "Debian"
-
-    # Debug available .NET packages
-    - name: Show available .NET packages
-      debug:
-        var: dotnet_packages.stdout_lines
       when: ansible_os_family == "Debian"
 
     # Install ASP.NET Core Runtime (try 9.0)
@@ -76,32 +50,17 @@
         owner: www-data
         group: www-data
 
-    # Configure blob storage settings
-    - name: Configure blob storage settings
-      copy:
-        content: |
-          {
-            "Logging": {
-              "LogLevel": {
-                "Default": "Warning",
-                "Microsoft": "Warning",
-                "Microsoft.Hosting.Lifetime": "Information"
-              }
-            },
-            "Storage": {
-              "ConnectionString": "DefaultEndpointsProtocol=https;AccountName={{ storage_account }};EndpointSuffix=core.windows.net"
-            }
-          }
-        dest: /var/www/app/appsettings.Production.json
-        owner: www-data
-        group: www-data
-        mode: '0644'
-
     # Decode MongoDB connection string
     - name: Decode MongoDB connection string
       set_fact:
         mongodb_connection_string: "{{ mongodb_connection_string_base64 | b64decode }}"
       when: mongodb_connection_string_base64 is defined
+
+    # Fallback if not provided
+    - name: Set empty MongoDB connection string if not provided
+      set_fact:
+        mongodb_connection_string: ""
+      when: mongodb_connection_string is not defined
 
     # Create app settings with MongoDB connection
     - name: Create application settings file
@@ -111,17 +70,15 @@
         owner: www-data
         group: www-data
         mode: '0644'
+      register: app_settings_result
+      changed_when: true
       notify: restart webapp service
 
-    # Set environment variables for app
-    - name: Set environment variables for app
-      lineinfile:
-        path: /etc/systemd/system/webapp.service
-        regexp: '^Environment=ASPNETCORE_ENVIRONMENT=.*'
-        line: 'Environment=ASPNETCORE_ENVIRONMENT=Production'
-        state: present
-      notify: restart webapp service
-
+    # Verify application settings file
+    - name: Verify application settings file
+      command: cat /var/www/app/appsettings.json
+      register: app_settings_content
+      changed_when: false # Does not change the system
 
     # Create web app service
     - name: Create app service file
@@ -143,7 +100,6 @@
 
           [Install]
           WantedBy=multi-user.target
-
         dest: /etc/systemd/system/webapp.service
         owner: root
         group: root
@@ -169,29 +125,14 @@
         state: present
       register: dependencies_installed
 
-    - name: Debug dependencies installation
-      debug:
-        var: dependencies_installed
-
     # Download the GitHub Actions runner.
     - name: Download GitHub Actions runner
       get_url:
         url: https://github.com/actions/runner/releases/download/v2.311.0/actions-runner-linux-x64-2.311.0.tar.gz
         dest: /tmp/actions-runner-linux-x64-2.311.0.tar.gz
         mode: '0644'
-        force: yes  # Always download new file
+        force: no  # Only download if it doesn't exist
       register: runner_download
-
-    - name: Debug runner download
-      debug:
-        var: runner_download
-
-    # Remove existing actions-runner directory if it exists.
-    - name: Remove existing actions-runner directory if it exists
-      file:
-        path: /opt/actions-runner
-        state: absent
-      when: runner_download.changed
 
     # Create GitHub Actions runner directory
     - name: Create GitHub Actions runner directory
@@ -203,10 +144,6 @@
         group: azureuser
       register: directory_created
 
-    - name: Debug directory creation
-      debug:
-        var: directory_created
-
     # Extract GitHub Actions runner
     - name: Extract GitHub Actions runner
       unarchive:
@@ -216,35 +153,15 @@
         owner: azureuser
         group: azureuser
         mode: '0755'
+        creates: /opt/actions-runner/run.sh  # Skip if already extracted
       register: extract_result
-
-    - name: Debug extraction result
-      debug:
-        var: extract_result
-
-    # Check if runner is already configured
-    - name: Check if runner is already configured
-      stat:
-        path: /opt/actions-runner/.runner
-      register: runner_configured
-
-    - name: Debug runner configuration check
-      debug:
-        var: runner_configured
 
     # Configure GitHub Actions runner
     - name: Configure GitHub Actions runner
       become: yes
       become_user: azureuser
       shell: |
-        set -x  # Echo commands for better debugging
         cd /opt/actions-runner
-
-        echo "Current directory content:"
-        ls -la
-
-        echo "GitHub repo: {{ github_repo }}"
-        echo "Token available: {{ 'Yes' if github_runner_token else 'No' }}"
 
         if [ -f ".runner" ]; then
           echo "Removing existing runner configuration"
@@ -254,10 +171,6 @@
 
         echo "Configuring runner with token for {{ github_repo }}"
         ./config.sh --url https://github.com/{{ github_repo }} --token {{ github_runner_token }} --name app-server-runner --labels self-hosted --unattended --replace
-
-        echo "Configuration result: $?"
-        echo "Runner files after configuration:"
-        ls -la
       args:
         executable: /bin/bash
       register: config_result
@@ -274,10 +187,6 @@
       register: service_install
       failed_when: false
 
-    - name: Debug service installation
-      debug:
-        var: service_install
-
     # Enable and start GitHub Actions runner service
     - name: Enable GitHub Actions runner service
       systemd:
@@ -287,21 +196,6 @@
         daemon_reload: yes
       register: service_enabled
       failed_when: false
-
-    - name: Debug service enable result
-      debug:
-        var: service_enabled
-
-    # Verify runner service is running.
-    - name: Check runner service status
-      shell: systemctl status actions.runner.* || true
-      register: service_status
-      changed_when: false
-      failed_when: false
-
-    - name: Debug service status
-      debug:
-        var: service_status.stdout_lines
 
     # Create a diagnostic file with all relevant information
     - name: Create diagnostic file
@@ -329,12 +223,6 @@
           Runner Extracted: {{ 'Success' if extract_result.changed == false else 'Changed' }}
           Runner Configured: {{ 'Success' if config_result.rc == 0 else 'Failed' }}
           Service Installed: {{ 'Success' if service_install.rc == 0 else 'Failed' }}
-
-          ## Configuration Output
-          {{ config_result.stdout }}
-
-          ## Service Status
-          {{ service_status.stdout }}
         dest: /opt/runner-diagnostics.txt
         owner: azureuser
         group: azureuser
@@ -348,6 +236,7 @@
         state: restarted
         daemon_reload: yes
         enabled: yes
+      become: true
 
     # Wait for service to start.
     - name: wait for service to start

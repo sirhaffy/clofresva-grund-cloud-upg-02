@@ -29,55 +29,87 @@ jobs:
     name: Check Changed Files
     runs-on: ubuntu-latest
     outputs:
-      run_bicep: ${{ steps.filter.outputs.bicep }}
-      run_ansible: ${{ steps.filter.outputs.ansible }}
-      run_webapp: ${{ steps.filter.outputs.webapp }}
+      run_bicep: ${{ steps.check_files.outputs.run_bicep }}
+      run_ansible: ${{ steps.check_files.outputs.run_ansible }}
+      run_webapp: ${{ steps.check_files.outputs.run_webapp }}
+      changes_detected: ${{ steps.check_files.outputs.changes_detected }}
+      change_summary: ${{ steps.check_files.outputs.change_summary }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 2
 
-      - name: Get changed files
-        id: changed-files
-        uses: tj-actions/changed-files@v44
-
-      - name: Set outputs based on changed files
-        id: filter
+      - name: Check changed files
+        id: check_files
         run: |
-          # Default to not running unless specified or changes detected
-          echo "bicep=${{ github.event.inputs.full_deployment == 'true' }}" >> $GITHUB_OUTPUT
-          echo "ansible=${{ github.event.inputs.full_deployment == 'true' && github.event.inputs.skip_ansible != 'true' }}" >> $GITHUB_OUTPUT
-          echo "webapp=true" >> $GITHUB_OUTPUT  # Default to always run webapp
-
-          # Check each changed file
-          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
-            # Infrastructure changes (Bicep)
-            if [[ $file == infrastructure/* ]]; then
-              echo "bicep=true" >> $GITHUB_OUTPUT
-            fi
-
-            # Configuration changes (Ansible)
-            if [[ $file == ansible/* ]]; then
-              echo "ansible=true" >> $GITHUB_OUTPUT
-            fi
-
-            # Workflow changes (might affect both)
-            if [[ $file == .github/workflows/* ]]; then
-              echo "bicep=true" >> $GITHUB_OUTPUT
-              echo "ansible=true" >> $GITHUB_OUTPUT
-            fi
-          done
-
-          # If explicitly skipping Ansible, override any detection
-          if [[ "${{ github.event.inputs.skip_ansible }}" == "true" ]]; then
-            echo "ansible=false" >> $GITHUB_OUTPUT
+          # Check if this is a manual trigger (workflow_dispatch)
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "Manual workflow run - will execute all steps"
+            echo "run_bicep=true" >> $GITHUB_OUTPUT
+            echo "run_ansible=true" >> $GITHUB_OUTPUT
+            echo "run_webapp=true" >> $GITHUB_OUTPUT
+            echo "changes_detected=true" >> $GITHUB_OUTPUT
+            echo "change_summary=Manual trigger: Running all deployment steps" >> $GITHUB_OUTPUT
+            exit 0
           fi
 
-          # Debug outputs
-          echo "Changes detected:"
-          echo "  Bicep: ${{ steps.filter.outputs.bicep || 'false' }}"
-          echo "  Ansible: ${{ steps.filter.outputs.ansible || 'false' }}"
-          echo "  WebApp: ${{ steps.filter.outputs.webapp || 'false' }}"
+          # For push/PR events, check what files changed
+          git diff --name-only HEAD^ HEAD > changed_files.txt
+
+          # Initialize change flags
+          bicep_changes=false
+          ansible_changes=false
+          webapp_changes=false
+
+          # Check for infrastructure changes
+          if grep -q "infrastructure/" changed_files.txt || \
+             grep -q "bicep/" changed_files.txt || \
+             grep -q "\.bicep$" changed_files.txt; then
+            bicep_changes=true
+          fi
+
+          # Check for Ansible changes
+          if grep -q "ansible/" changed_files.txt || \
+             grep -q "playbooks/" changed_files.txt || \
+             grep -q "roles/" changed_files.txt || \
+             grep -q "templates/" changed_files.txt; then
+            ansible_changes=true
+          fi
+
+          # Check for webapp changes
+          if grep -q "WebbApp/" changed_files.txt || \
+             grep -q "\.cs$" changed_files.txt || \
+             grep -q "\.csproj$" changed_files.txt || \
+             grep -q "wwwroot/" changed_files.txt; then
+            webapp_changes=true
+          fi
+
+          # Set outputs based on changes
+          echo "run_bicep=$bicep_changes" >> $GITHUB_OUTPUT
+          echo "run_ansible=$ansible_changes" >> $GITHUB_OUTPUT
+          echo "run_webapp=$webapp_changes" >> $GITHUB_OUTPUT
+
+          # Determine if any changes were detected
+          if [[ "$bicep_changes" == "true" || "$ansible_changes" == "true" || "$webapp_changes" == "true" ]]; then
+            echo "changes_detected=true" >> $GITHUB_OUTPUT
+          else
+            echo "changes_detected=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Create a change summary
+          summary="Changes detected:\n"
+          summary+="  Infrastructure: $bicep_changes\n"
+          summary+="  Configuration: $ansible_changes\n"
+          summary+="  Web Application: $webapp_changes\n"
+          echo "change_summary=$summary" >> $GITHUB_OUTPUT
+
+          # Echo the changes for the log
+          echo "==================== CHANGE DETECTION SUMMARY ===================="
+          echo -e "$summary"
+          echo "================================================================="
+
+          cat changed_files.txt
 
   # Check if dotnet app files were changed.
   deploy-infrastructure:
@@ -210,7 +242,7 @@ jobs:
   configure-servers:
     name: Configure Servers with Ansible
     needs: [check-changes, deploy-infrastructure]
-    if: ${{ always() && needs.check-changes.outputs.run_ansible == 'true' && (needs.deploy-infrastructure.result == 'success' || needs.deploy-infrastructure.result == 'skipped') }}
+    if: ${{ needs.check-changes.outputs.run_ansible == 'true' || (needs.check-changes.outputs.run_bicep == 'true' && needs.deploy-infrastructure.result == 'success') }}
     runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP }}
