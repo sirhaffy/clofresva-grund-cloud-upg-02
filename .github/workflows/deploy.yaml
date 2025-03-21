@@ -181,9 +181,22 @@ jobs:
           APP_IP=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.appServerPrivateIp.value')
           STORAGE_ACCOUNT=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.storageAccountName.value')
           BLOB_ENDPOINT=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.blobEndpoint.value')
+
+          # Get the MongoDB connection string with proper error handling
           MONGODB_CONNECTION_STRING=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.dotNetMongoConnectionString.value // ""')
 
-          # Set outputs for other jobs to use (securely)
+          # Base64 encode the MongoDB connection string to avoid shell escaping issues
+          if [ -n "$MONGODB_CONNECTION_STRING" ]; then
+            echo "MongoDB connection string found (length: ${#MONGODB_CONNECTION_STRING})"
+            MONGODB_CONNECTION_STRING_B64=$(echo -n "$MONGODB_CONNECTION_STRING" | base64 -w0)
+            # Set as output for use in other jobs
+            echo "MONGODB_CONNECTION_STRING_B64=$MONGODB_CONNECTION_STRING_B64" >> $GITHUB_OUTPUT
+          else
+            echo "Warning: MongoDB connection string is empty or not found"
+            echo "MONGODB_CONNECTION_STRING_B64=" >> $GITHUB_OUTPUT
+          fi
+
+          # Set outputs for other jobs to use
           echo "BASTION_IP=$BASTION_IP" >> $GITHUB_OUTPUT
           echo "APP_IP=$APP_IP" >> $GITHUB_OUTPUT
           echo "STORAGE_ACCOUNT=$STORAGE_ACCOUNT" >> $GITHUB_OUTPUT
@@ -196,6 +209,7 @@ jobs:
           echo "STORAGE_ACCOUNT=$STORAGE_ACCOUNT" >> $GITHUB_ENV
           echo "BLOB_ENDPOINT=$BLOB_ENDPOINT" >> $GITHUB_ENV
           echo "MONGODB_CONNECTION_STRING=$MONGODB_CONNECTION_STRING" >> $GITHUB_ENV
+          echo "MONGODB_CONNECTION_STRING_B64=$MONGODB_CONNECTION_STRING_B64" >> $GITHUB_ENV
 
           # Print safe debug output (no tokens or connection strings)
           echo "Retrieved the following outputs:"
@@ -204,6 +218,7 @@ jobs:
           echo "- Storage Account: $STORAGE_ACCOUNT"
           echo "- Blob Endpoint: $BLOB_ENDPOINT"
           echo "- MongoDB Connection String: [REDACTED]"
+          echo "- MongoDB Connection String B64: [ENCODED]"
 
       - name: Ensure Ansible config exists
         run: |
@@ -248,6 +263,7 @@ jobs:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP }}
       APP_IP: ${{ needs.deploy-infrastructure.outputs.APP_IP }}
       MONGODB_CONNECTION_STRING: ${{ needs.deploy-infrastructure.outputs.MONGODB_CONNECTION_STRING }}
+      MONGODB_CONNECTION_STRING_B64: ${{ needs.deploy-infrastructure.outputs.MONGODB_CONNECTION_STRING_B64 }}
       STORAGE_ACCOUNT: ${{ needs.deploy-infrastructure.outputs.STORAGE_ACCOUNT }}
       BLOB_ENDPOINT: ${{ needs.deploy-infrastructure.outputs.BLOB_ENDPOINT }}
     steps:
@@ -359,8 +375,7 @@ jobs:
           sed -i "s/github_runner_token: \*\*\*/github_runner_token: ${{ env.RUNNER_TOKEN }}/" ./ansible/inventories/azure_rm.yaml
 
           # Använd base64 för att undvika problem med specialtecken
-          ENCODED_CONN_STRING=$(echo -n "${{ env.MONGODB_CONNECTION_STRING }}" | base64)
-          echo "    mongodb_connection_string_base64: $ENCODED_CONN_STRING" >> ./ansible/inventories/azure_rm.yaml
+          echo "    mongodb_connection_string_base64: ${{ env.MONGODB_CONNECTION_STRING_B64 }}" >> ./ansible/inventories/azure_rm.yaml
 
           # Debug - visa inventory med maskerat token
           echo "Generated inventory file (sensitive data masked):"
