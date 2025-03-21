@@ -1,0 +1,22 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "Storage": {
+    "AccountName": "{{ storage_account | default('') }}",
+    "BlobEndpoint": "{{ blob_endpoint | default('') }}",
+    "ContainerName": "appdata"
+  },
+  "MongoDB": {
+    "ConnectionString": "{{ mongodb_connection_string | default('') }}",
+    "DatabaseName": "cloudsoft"
+  },
+  "SUBSCRIBER_REPOSITORY": "cosmos",
+  "FEATUREFLAGS": {
+    "USEAZURESTORAGE": true
+  }
+}

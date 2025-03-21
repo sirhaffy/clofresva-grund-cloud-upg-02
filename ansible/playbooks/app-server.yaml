@@ -83,16 +83,13 @@
           {
             "Logging": {
               "LogLevel": {
-                "Default": "Information",
+                "Default": "Warning",
                 "Microsoft": "Warning",
                 "Microsoft.Hosting.Lifetime": "Information"
               }
             },
-            "AllowedHosts": "*",
-            "BlobStorage": {
-              "ConnectionString": "DefaultEndpointsProtocol=https;AccountName={{ storage_account }};EndpointSuffix=core.windows.net",
-              "ContainerName": "appdata",
-              "BlobEndpoint": "{{ blob_endpoint }}"
+            "Storage": {
+              "ConnectionString": "DefaultEndpointsProtocol=https;AccountName={{ storage_account }};EndpointSuffix=core.windows.net"
             }
           }
         dest: /var/www/app/appsettings.Production.json
@@ -100,32 +97,16 @@
         group: www-data
         mode: '0644'
 
+    # Decode MongoDB connection string
+    - name: Decode MongoDB connection string
+      set_fact:
+        mongodb_connection_string: "{{ mongodb_connection_string_base64 | b64decode }}"
+      when: mongodb_connection_string_base64 is defined
+
     # Create app settings with MongoDB connection
     - name: Create application settings file
-      copy:
-        content: |
-          {
-            "Logging": {
-              "LogLevel": {
-                "Default": "Information",
-                "Microsoft.AspNetCore": "Warning"
-              }
-            },
-            "AllowedHosts": "*",
-            "Storage": {
-              "AccountName": "{{ storage_account | default('') }}",
-              "BlobEndpoint": "{{ blob_endpoint | default('') }}",
-              "ContainerName": "{{ container_name | default('appdata') }}"
-            },
-            "MongoDB": {
-              "ConnectionString": "{{ mongodb_connection_string | default('') }}",
-              "DatabaseName": "cloudsoft"
-            },
-            "SUBSCRIBER_REPOSITORY": "cosmos",
-            "FEATUREFLAGS": {
-              "USEAZURESTORAGE": true
-            }
-          }
+      template:
+        src: templates/appsettings.json.j2
         dest: /var/www/app/appsettings.json
         owner: www-data
         group: www-data

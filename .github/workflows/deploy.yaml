@@ -308,31 +308,28 @@ jobs:
           echo "    project_name: ${{ env.PROJECT_NAME }}" >> ./ansible/inventories/azure_rm.yaml
           echo "    storage_account: ${{ env.STORAGE_ACCOUNT }}" >> ./ansible/inventories/azure_rm.yaml
           echo "    blob_endpoint: ${{ env.BLOB_ENDPOINT }}" >> ./ansible/inventories/azure_rm.yaml
+          echo "    container_name: appdata" >> ./ansible/inventories/azure_rm.yaml
           echo "    github_repo: ${{ env.REPO_NAME }}" >> ./ansible/inventories/azure_rm.yaml
           echo "    github_runner_token: ***" >> ./ansible/inventories/azure_rm.yaml
           # Säkert sätt att lägga till token i filen
           sed -i "s/github_runner_token: \*\*\*/github_runner_token: ${{ env.RUNNER_TOKEN }}/" ./ansible/inventories/azure_rm.yaml
-          echo "    mongodb_connection_string: '${{ env.MONGODB_CONNECTION_STRING }}'" >> ./ansible/inventories/azure_rm.yaml
+
+          # Använd base64 för att undvika problem med specialtecken
+          ENCODED_CONN_STRING=$(echo -n "${{ env.MONGODB_CONNECTION_STRING }}" | base64)
+          echo "    mongodb_connection_string_base64: $ENCODED_CONN_STRING" >> ./ansible/inventories/azure_rm.yaml
 
           # Debug - visa inventory med maskerat token
           echo "Generated inventory file (sensitive data masked):"
-          cat ./ansible/inventories/azure_rm.yaml | sed 's/github_runner_token: .*/github_runner_token: ***/'
+          cat ./ansible/inventories/azure_rm.yaml | sed 's/github_runner_token: .*/github_runner_token: ***/' | sed 's/mongodb_connection_string_base64: .*/mongodb_connection_string_base64: ***/'
 
           echo "Waiting for SSH to be available..."
-          sleep 60
+          sleep 30
 
-          # Run app-server playbook
-          ansible-playbook -i ./ansible/inventories/azure_rm.yaml ./ansible/playbooks/app-server.yaml
-
-          # Error handling
+          # Kör Ansible en gång med error-hantering
           echo "Running Ansible with error handling..."
-
           if ! ansible-playbook -i ./ansible/inventories/azure_rm.yaml ./ansible/playbooks/app-server.yaml; then
-
             echo "::warning::Ansible playbook failed but workflow will continue"
-            # Set an environment variable to indicate failure.
             echo "ansible_failed=true" >> $GITHUB_ENV
-
           else
             echo "ansible_failed=false" >> $GITHUB_ENV
           fi
@@ -399,7 +396,9 @@ jobs:
       # Add a timestamp to the deployment for use in the app.
       - name: Add deploy timestamp
         run: |
-          echo "$(date -u +"%Y-%m-%d %H:%M:%S")" > ./publish/deploy-timestamp.txt
+          # Säkerställ att wwwroot-katalogen finns
+          mkdir -p ./publish/wwwroot
+          echo "$(date -u +"%Y-%m-%d %H:%M:%S")" > ./publish/wwwroot/deploy-timestamp.txt
 
       # Deploy the application to the server
       - name: Verify deployment
@@ -446,6 +445,9 @@ jobs:
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP }}
       APP_IP: ${{ needs.deploy-infrastructure.outputs.APP_IP }}
+      MONGODB_CONNECTION_STRING: ${{ needs.deploy-infrastructure.outputs.MONGODB_CONNECTION_STRING }}
+      STORAGE_ACCOUNT: ${{ needs.deploy-infrastructure.outputs.STORAGE_ACCOUNT }}
+      BLOB_ENDPOINT: ${{ needs.deploy-infrastructure.outputs.BLOB_ENDPOINT }}
 
     # Only run if the app was successfully built.
     if: ${{ always() && needs.deploy-app.result == 'success' }}
@@ -517,13 +519,34 @@ jobs:
             echo 'Deploying application...'
             sudo systemctl stop webapp.service || echo 'Service not running yet'
 
+            # Spara befintlig appsettings.json om den finns
+            if [ -f /var/www/app/appsettings.json ]; then
+              sudo cp /var/www/app/appsettings.json /tmp/appsettings.json.bak
+            fi
+
             echo 'Removing old files...'
             sudo rm -rf /var/www/app/*
             sudo mkdir -p /var/www/app
 
             echo 'Copy files to webapp directory...'
             sudo cp -r /tmp/webapp/* /var/www/app/
+
+            # Återställ appsettings.json om den fanns
+            if [ -f /tmp/appsettings.json.bak ]; then
+              sudo cp /tmp/appsettings.json.bak /var/www/app/appsettings.json
+            fi
+
             sudo chown -R www-data:www-data /var/www/app
+
+            # Skapa wwwroot om det inte finns
+            sudo mkdir -p /var/www/app/wwwroot
+            sudo chown -R www-data:www-data /var/www/app/wwwroot
+
+            # Skapa timestamp-filen om den inte finns
+            if [ ! -f /var/www/app/wwwroot/deploy-timestamp.txt ]; then
+              echo \"\$(date -u +'%Y-%m-%d %H:%M:%S')\" | sudo tee /var/www/app/wwwroot/deploy-timestamp.txt
+              sudo chown www-data:www-data /var/www/app/wwwroot/deploy-timestamp.txt
+            fi
 
             echo 'Listing files in webapp directory...'
             ls -la /var/www/app/
