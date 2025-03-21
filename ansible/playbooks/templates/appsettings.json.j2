@@ -9,7 +9,7 @@
   "Storage": {
     "AccountName": "{{ storage_account | default('') }}",
     "BlobEndpoint": "{{ blob_endpoint | default('') }}",
-    "ContainerName": "appdata"
+    "ContainerName": "{{ container_name | default('') }}",
   },
   "MongoDB": {
     "ConnectionString": {{ mongodb_connection_string | to_json }},

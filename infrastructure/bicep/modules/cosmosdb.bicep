@@ -122,16 +122,16 @@ resource mongoCollection 'Microsoft.DocumentDB/databaseAccounts/mongodbDatabases
   ]
 }
 
-// Output the names of the Cosmos DB account, database, and collection
+// Output the names of the Cosmos DB account, database, and collection.
 output cosmosDbAccountName string = cosmosDbAccountRef.name
 output cosmosDbDatabaseName string = mongoDatabase.name
 output cosmosDbCollectionName string = mongoCollection.name
 
-// Secret output that contains the connection string for the MongoDB API
+// Secret output that contains the connection string for the MongoDB API.
 #disable-next-line outputs-should-not-contain-secrets
 output dotNetMongoConnectionString string = cosmosDbAccountRef.listConnectionStrings().connectionStrings[0].connectionString
 
-// Output the IDs of the Cosmos DB account, database, and collection
+// Output the IDs of the Cosmos DB account, database, and collection.
 output cosmosDbAccountId string = cosmosDbAccountRef.id
 output mongoDbDatabaseId string = mongoDatabase.id
 output mongoDbCollectionId string = mongoCollection.id
