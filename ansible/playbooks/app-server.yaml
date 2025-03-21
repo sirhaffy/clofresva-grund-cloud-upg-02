@@ -113,8 +113,8 @@
             },
             "AllowedHosts": "*",
             "Storage": {
-              "AccountName": "{{ storage_account | default('storage-account-name') }}",
-              "BlobEndpoint": "{{ blob_endpoint | default('https://example.blob.core.windows.net/') }}",
+              "AccountName": "{{ storage_account | default('') }}",
+              "BlobEndpoint": "{{ blob_endpoint | default('') }}",
               "ContainerName": "{{ container_name | default('appdata') }}"
             },
             "MongoDB": {

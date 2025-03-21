@@ -1,5 +1,5 @@
-# Azure Infrastructure Project
-- **Student**: Johan Nilsson
+# CLO Cloud Basics
+- **Student**: Fredrik Svärd
 - **Kurs**: Cloud Basics
 - **Skola**: Campus Mölndal YH
-- **Handledare**: Lars Larsson
+- **Handledare**: Lars Appel

@@ -32,9 +32,21 @@ Provade att dela upp stegen i deploy.yaml i flera steg: 'Check Changed files', '
 
 Brottades med connectionstring en stund i appsettings template, ddfick det att fungea tillslut. Men tyckte det var smidigar ee
 
+Made dubbla steg och felplacerat.. Rensade bort ett.
+
 Hade glömt öppna upp blobstorage för public, så fick ändra på det i Biceps filen.
 
 Fick också ändra lite så den hämtade från rätt container i BlobStorage. Och använder faöllback till local storage /image mappen, med en flagga.
+
+Har problem med att sajten tas ner om flödet inte fungerar.. 
+
+
+
+## TODO
+MongoDB
+Blobstorage
+Fail2ban
+PortKnocking
 
 
 
