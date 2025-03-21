@@ -1,8 +1,21 @@
 ﻿@{
     ViewData["Title"] = "Home Page";
+    var deployTime = System.IO.File.Exists("deploy-timestamp.txt")
+        ? System.IO.File.ReadAllText("deploy-timestamp.txt")
+        : DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
 }
 
 <div class="text-center">
     <h1 class="display-4">Welcome</h1>
     <p>Born again........</p>
+    <p class="text-muted">App deployed on: @deployTime UTC</p>
+
+    <div class="mt-4">
+        <p>Server Info:</p>
+        <ul class="list-unstyled">
+            <li>App Version: @(System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version)</li>
+            <li>Server Time: @DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")</li>
+            <li>Environment: @Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")</li>
+        </ul>
+    </div>
 </div>

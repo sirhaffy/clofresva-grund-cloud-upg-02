@@ -30,8 +30,8 @@ namespace MVC_TestApp.Controllers
                 RepositoryType = _repository.GetType().Name,
                 HasMongoConnectionString = !string.IsNullOrEmpty(_configuration["MongoDB:ConnectionString"]),
                 MongoConnectionStringLength = (_configuration["MongoDB:ConnectionString"] ?? "").Length,
-                StorageAccountName = _configuration["Storage:AccountName"],
-                BlobEndpoint = _configuration["Storage:BlobEndpoint"],
+                StorageAccountName = _configuration["Storage:AccountName"] ?? string.Empty,
+                BlobEndpoint = _configuration["Storage:BlobEndpoint"] ?? string.Empty,
                 FeatureFlagUseAzureStorage = _configuration.GetValue<bool>("FEATUREFLAGS:USEAZURESTORAGE"),
                 SubscriberCount = (await _repository.GetSubscribersAsync()).Count()
             };
@@ -42,11 +42,11 @@ namespace MVC_TestApp.Controllers
 
     public class DiagnosticsViewModel
     {
-        public string RepositoryType { get; set; }
+        public string RepositoryType { get; set; } = string.Empty;
         public bool HasMongoConnectionString { get; set; }
         public int MongoConnectionStringLength { get; set; }
-        public string StorageAccountName { get; set; }
-        public string BlobEndpoint { get; set; }
+        public string StorageAccountName { get; set; } = string.Empty;
+        public string BlobEndpoint { get; set; } = string.Empty;
         public bool FeatureFlagUseAzureStorage { get; set; }
         public int SubscriberCount { get; set; }
     }

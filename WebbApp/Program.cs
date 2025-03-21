@@ -2,41 +2,49 @@ using DotNetEnv;
 using MongoDB.Driver;
 using FluentValidation;
 using FluentValidation.AspNetCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using MVC_TestApp.Controllers;
 using MVC_TestApp.Models;
 using MVC_TestApp.Repositories;
 using MVC_TestApp.Services;
 using MVC_TestApp.Storage;
 
-// Ladda miljövariabler från .env
-Env.Load("../.env");
+// Load environment variables from .env
+Env.Load();
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Lägg till miljövariabler till konfigurationen
+// Add environment variables to configuration
 builder.Configuration.AddEnvironmentVariables();
 
-// Konfigurera loggning
+// Configure logging
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
 var logger = loggerFactory.CreateLogger("Program");
 
-// Registrera gemensamma tjänster
+// Register common services
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<INewsletterService, NewsletterService>();
 builder.Services.AddScoped<IValidator<Subscriber>, UserValidator>();
 builder.Services.AddFluentValidationAutoValidation();
 
-// Läs in vilket repository som ska användas (standard = inmemory om inget annat anges)
-string repoType = builder.Configuration.GetValue<string>("SUBSCRIBER_REPOSITORY", "inmemory").ToLowerInvariant();
-logger.LogInformation($"Using subscriber repository type: {repoType}");
+// Read which repository to use (default = inmemory if not specified)
+string? repoType = builder.Configuration.GetValue<string>("SUBSCRIBER_REPOSITORY", "inmemory")?.ToLowerInvariant();
+repoType ??= "inmemory";
 
-// Around line 35-40 in Program.cs
 if (repoType == "mongo" || repoType == "cosmos")
 {
     // Get connection string from configuration
-    string connectionString = builder.Configuration.GetSection("MongoDB:ConnectionString").Value;
+    string? connectionString = builder.Configuration.GetSection("MongoDB:ConnectionString").Value;
+
+    logger.LogInformation("MongoDB connection string set: {IsSet}, Length: {Length}",
+        !string.IsNullOrEmpty(connectionString),
+        connectionString?.Length ?? 0);
+
+    logger.LogInformation("Using MongoDB repository");
+    builder.Services.AddSingleton<IMongoClient>(new MongoClient(connectionString));
 
     if (string.IsNullOrEmpty(connectionString))
     {
@@ -85,28 +93,27 @@ if (repoType == "mongo" || repoType == "cosmos")
 else if (repoType == "inmemory")
 {
     builder.Services.AddSingleton<ISubscriberRepository, InMemorySubscriberRepository>();
-    logger.LogInformation("Registrerar InMemorySubscriberRepository.");
+    logger.LogInformation("Registered InMemorySubscriberRepository.");
 }
 else
 {
-    logger.LogWarning($"Okänt SUBSCRIBER_REPOSITORY-värde '{repoType}'. Använder standard: InMemory.");
+    logger.LogWarning($"Unknown SUBSCRIBER_REPOSITORY value '{repoType}'. Using default: InMemory.");
     builder.Services.AddSingleton<ISubscriberRepository, InMemorySubscriberRepository>();
 }
 
-// Läs in flaggan för bildlagring via FEATUREFLAGS__USEAZURESTORAGE.
+// Read feature flag for image storage service from configuration.
 bool useAzureStorage = builder.Configuration.GetValue<bool>("FEATUREFLAGS:USEAZURESTORAGE", false);
 logger.LogInformation($"FEATUREFLAGS: USEAZURESTORAGE = {useAzureStorage}");
 
-// Välj bildlagringstjänst baserat på flaggan.
-// Om flaggan är true: använd AzureBlobImageService, annars LocalImageService.
+// If useAzureStorage is true, register AzureBlobImageService, otherwise LocalImageService.
 if (useAzureStorage)
 {
-    logger.LogInformation("Använder Azure Blob Storage för bilder...");
+    logger.LogInformation("Using Azure Blob Storage for images...");
     builder.Services.AddSingleton<IImageService, AzureBlobImageService>();
 }
 else
 {
-    logger.LogInformation("Använder lokal bildlagring...");
+    logger.LogInformation("Using local image storage...");
     builder.Services.AddSingleton<IImageService, LocalImageService>();
 }
 
