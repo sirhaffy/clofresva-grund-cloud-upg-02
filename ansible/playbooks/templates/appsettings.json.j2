@@ -13,9 +13,10 @@
   },
   "MongoDB": {
     "ConnectionString": "{{ mongodb_connection_string | default('') }}",
-    "DatabaseName": "cloudsoft"
+    "DatabaseName": "cloudsoft",
+    "CollectionName": "subscribers"
   },
-  "SUBSCRIBER_REPOSITORY": "cosmos",
+  "SUBSCRIBER_REPOSITORY": "{% if mongodb_connection_string | default('') == '' %}inmemory{% else %}cosmos{% endif %}",
   "FEATUREFLAGS": {
     "USEAZURESTORAGE": true
   }

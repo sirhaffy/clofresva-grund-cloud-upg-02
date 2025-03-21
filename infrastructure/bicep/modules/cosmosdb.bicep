@@ -1,13 +1,12 @@
 param projectName string
 param location string = resourceGroup().location
-param databaseName string = 'myDatabase'
-param collectionName string = 'myCollection'
+param databaseName string = 'cloudsoft'
+param collectionName string = 'subscribers'
 
-// Generera ett unikt namn för Cosmos DB-kontot (måste vara globalt unikt)
-// Använder ett beständigt mönster som inte ändras mellan deployments
+// Generate a unique Cosmos DB account name
 var cosmosDbAccountName = '${toLower(replace(projectName, '-', ''))}mongo${uniqueString(resourceGroup().id, projectName)}'
 
-// Skapa ett Cosmos DB-konto med MongoDB API
+// Create a Cosmos DB account
 resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2022-05-15' = {
   name: cosmosDbAccountName
   location: location
@@ -22,12 +21,9 @@ resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2022-05-15' = {
       {
         name: 'EnableMongo'
       }
-      {
-        name: 'EnableServerless'
-      }
     ]
     apiProperties: {
-      serverVersion: '4.2' // MongoDB server version
+      serverVersion: '4.2'
     }
     locations: [
       {
@@ -36,10 +32,11 @@ resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2022-05-15' = {
         isZoneRedundant: false
       }
     ]
+    publicNetworkAccess: 'Enabled'
   }
 }
 
-// Skapa en MongoDB-databas
+// Create a database in the Cosmos DB account
 resource mongoDatabase 'Microsoft.DocumentDB/databaseAccounts/mongodbDatabases@2022-05-15' = {
   parent: cosmosDbAccount
   name: databaseName
@@ -51,7 +48,7 @@ resource mongoDatabase 'Microsoft.DocumentDB/databaseAccounts/mongodbDatabases@2
   }
 }
 
-// Skapa en collection i databasen (motsvarar en tabell)
+// Create a collection in the database
 resource mongoCollection 'Microsoft.DocumentDB/databaseAccounts/mongodbDatabases/collections@2022-05-15' = {
   parent: mongoDatabase
   name: collectionName
@@ -69,28 +66,25 @@ resource mongoCollection 'Microsoft.DocumentDB/databaseAccounts/mongodbDatabases
         }
         {
           key: {
-            keys: ['name']
+            keys: ['email']
           }
         }
       ]
     }
-    options: {} // Tom options för att göra deployments idempotenta
+    options: {}
   }
 }
 
-// Outputs för anslutningsinformation
+// Output the names of the Cosmos DB account, database, and collection
 output cosmosDbAccountName string = cosmosDbAccount.name
 output cosmosDbDatabaseName string = mongoDatabase.name
 output cosmosDbCollectionName string = mongoCollection.name
 
-// Säker output för connection strings
-#disable-next-line outputs-should-not-contain-secrets use-resource-symbol-reference
-output mongoDbConnectionString string = 'mongodb://${cosmosDbAccount.name}:${listKeys(cosmosDbAccount.id, cosmosDbAccount.apiVersion).primaryMasterKey}@${cosmosDbAccount.name}.mongo.cosmos.azure.com:10255/${databaseName}?ssl=true&replicaSet=globaldb&retrywrites=false&maxIdleTimeMS=120000&appName=@${cosmosDbAccount.name}@'
+// Secret output that contains the connection string for the MongoDB API
+#disable-next-line outputs-should-not-contain-secrets
+output dotNetMongoConnectionString string = cosmosDbAccount.listConnectionStrings().connectionStrings[0].connectionString
 
-#disable-next-line outputs-should-not-contain-secrets use-resource-symbol-reference
-output dotNetMongoConnectionString string = 'mongodb://${cosmosDbAccount.name}:${listKeys(cosmosDbAccount.id, cosmosDbAccount.apiVersion).primaryMasterKey}@${cosmosDbAccount.name}.mongo.cosmos.azure.com:10255/?ssl=true&replicaSet=globaldb&retrywrites=false&maxIdleTimeMS=120000&appName=@${cosmosDbAccount.name}@'
-
-// Output som gör det möjligt att referera till dessa resurser från andra Bicep-moduler
+// Output the IDs of the Cosmos DB account, database, and collection
 output cosmosDbAccountId string = cosmosDbAccount.id
 output mongoDbDatabaseId string = mongoDatabase.id
 output mongoDbCollectionId string = mongoCollection.id

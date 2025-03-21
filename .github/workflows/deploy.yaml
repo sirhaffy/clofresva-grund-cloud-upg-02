@@ -115,8 +115,10 @@ jobs:
             https://api.github.com/repos/${{ env.REPO_NAME }}/actions/runners/registration-token \
             | jq -r .token)
 
+          # Securely set the token as an environment variable (won't be logged)
           echo "RUNNER_TOKEN=$TOKEN" >> $GITHUB_ENV
-          echo "Fresh token generated!"
+          echo "::add-mask::$TOKEN"
+          echo "Fresh token generated! (masked for security)"
 
       - name: Deploy Infrastructure
         id: deploy
@@ -149,7 +151,7 @@ jobs:
           BLOB_ENDPOINT=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.blobEndpoint.value')
           MONGODB_CONNECTION_STRING=$(echo $DEPLOYMENT_OUTPUTS | jq -r '.dotNetMongoConnectionString.value // ""')
 
-          # Set outputs for other jobs to use
+          # Set outputs for other jobs to use (securely)
           echo "BASTION_IP=$BASTION_IP" >> $GITHUB_OUTPUT
           echo "APP_IP=$APP_IP" >> $GITHUB_OUTPUT
           echo "STORAGE_ACCOUNT=$STORAGE_ACCOUNT" >> $GITHUB_OUTPUT
@@ -162,6 +164,14 @@ jobs:
           echo "STORAGE_ACCOUNT=$STORAGE_ACCOUNT" >> $GITHUB_ENV
           echo "BLOB_ENDPOINT=$BLOB_ENDPOINT" >> $GITHUB_ENV
           echo "MONGODB_CONNECTION_STRING=$MONGODB_CONNECTION_STRING" >> $GITHUB_ENV
+
+          # Print safe debug output (no tokens or connection strings)
+          echo "Retrieved the following outputs:"
+          echo "- Bastion IP: $BASTION_IP"
+          echo "- App Server IP: $APP_IP"
+          echo "- Storage Account: $STORAGE_ACCOUNT"
+          echo "- Blob Endpoint: $BLOB_ENDPOINT"
+          echo "- MongoDB Connection String: [REDACTED]"
 
       - name: Ensure Ansible config exists
         run: |
@@ -228,8 +238,10 @@ jobs:
             https://api.github.com/repos/${{ env.REPO_NAME }}/actions/runners/registration-token \
             | jq -r .token)
 
+          # Securely set the token as an environment variable (won't be logged)
           echo "RUNNER_TOKEN=$TOKEN" >> $GITHUB_ENV
-          echo "New token generated!"
+          echo "::add-mask::$TOKEN"
+          echo "New token generated! (masked for security)"
 
       - name: Debug environment variables
         run: |
@@ -241,7 +253,7 @@ jobs:
           echo "BLOB_ENDPOINT: ${{ env.BLOB_ENDPOINT }}"
           echo "REPO_NAME: ${{ env.REPO_NAME }}"
           echo "RUNNER_TOKEN available: ${{ env.RUNNER_TOKEN != '' }}"
-          echo "RUNNER_TOKEN length: ${#RUNNER_TOKEN}"
+          echo "RUNNER_TOKEN length: ${#RUNNER_TOKEN}" # Safe to show length but not value
 
       - name: Ensure Ansible config exists
         run: |
