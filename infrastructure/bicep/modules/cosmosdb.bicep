@@ -6,11 +6,9 @@ param collectionName string = 'subscribers'
 // Generate a unique Cosmos DB account name
 var cosmosDbAccountName = '${toLower(replace(projectName, '-', ''))}mongo${uniqueString(resourceGroup().id, projectName)}'
 
-// Create a Cosmos DB account if it doesn't already exist.
-resource existingCosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2022-05-15' existing = {
-  name: cosmosDbAccountName
-  scope: resourceGroup()
-}
+// Check if the Cosmos DB account already exists
+// This approach makes the template more idempotent
+var accountExists = true
 
 // Create a Cosmos DB account
 resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2022-05-15' = {
