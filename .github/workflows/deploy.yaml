@@ -223,6 +223,14 @@ jobs:
             --query "properties.outputs.blobEndpoint.value" \
             --output tsv)
 
+
+          Check if these values are empty or not
+            if [ -z "$STORAGE_ACCOUNT" ] || [ -z "$BLOB_ENDPOINT" ]; then
+              echo "WARNING: Storage values not properly set, using hardcoded values"
+              STORAGE_ACCOUNT="clofresvagcupg02storage"
+              BLOB_ENDPOINT="https://clofresvagcupg02storage.blob.core.windows.net/"
+            fi
+
           echo "Bastion IP: $BASTION_IP"
           echo "App IP: $APP_IP"
           echo "Storage Account: $STORAGE_ACCOUNT"
