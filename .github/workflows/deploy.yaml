@@ -146,6 +146,7 @@ jobs:
       BASTION_IP: ${{ steps.deployment_data.outputs.BASTION_IP }}
       APP_IP: ${{ steps.deployment_data.outputs.APP_IP }}
       MONGODB_CONNECTION_STRING: ${{ steps.deployment_data.outputs.MONGODB_CONNECTION_STRING }}
+      MONGODB_CONNECTION_STRING_B64: ${{ steps.deployment_data.outputs.MONGODB_CONNECTION_STRING_B64 }}
       STORAGE_ACCOUNT: ${{ steps.deployment_data.outputs.STORAGE_ACCOUNT }}
       BLOB_ENDPOINT: ${{ steps.deployment_data.outputs.BLOB_ENDPOINT }}
       RUNNER_TOKEN: ${{ steps.generate_token.outputs.RUNNER_TOKEN }}
@@ -182,8 +183,7 @@ jobs:
           # Check if the token is available.
           echo "Debug: Runner token"
           echo "PAT token available: ${{ secrets.PAT_TOKEN != '' }}"
-          echo "Runner token available: $([[ -n "$TOKEN" ]] && echo
-          "Yes" || echo "No")"
+          echo "Runner token available: $([[ -n "$TOKEN" ]] && echo "Yes" || echo "No")"
           echo "REPO_NAME: ${{ env.REPO_NAME }}"
 
       # Deploy the infrastructure using Bicep
