@@ -49,16 +49,17 @@ jobs:
       - name: Check changed files
         id: check_files
         run: |
-
           # Check if this is a manual trigger (workflow_dispatch).
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "Manual workflow run - will execute all steps"
-            echo "run_bicep=true" >> $GITHUB_OUTPUT
-            echo "run_ansible=true" >> $GITHUB_OUTPUT
-            echo "run_webapp=true" >> $GITHUB_OUTPUT
-            echo "changes_detected=true" >> $GITHUB_OUTPUT
-            echo "change_summary=Manual trigger: Running all deployment steps" >> $GITHUB_OUTPUT
-            exit 0
+            if [[ "${{ github.event.inputs.full_deployment }}" == "true" ]]; then
+              echo "Manual workflow run - will execute all steps"
+              echo "run_bicep=true" >> $GITHUB_OUTPUT
+              echo "run_ansible=true" >> $GITHUB_OUTPUT
+              echo "run_webapp=true" >> $GITHUB_OUTPUT
+              echo "changes_detected=true" >> $GITHUB_OUTPUT
+              echo "change_summary=Manual trigger: Running all deployment steps" >> $GITHUB_OUTPUT
+              exit 0
+            fi
           fi
 
           # For push/PR events, check what files changed.
@@ -100,6 +101,9 @@ jobs:
           echo "run_webapp=$webapp_changes" >> $GITHUB_OUTPUT
 
           # Determine if any changes were detected.
+          changes_detected=$([ "$bicep_changes" = "true" ] || [ "$ansible_changes" = "true" ] || [ "$webapp_changes" = "true" ] && echo "true" || echo "false")
+          echo "changes_detected=$changes_detected" >> $GITHUB_OUTPUT
+
           if [ "$bicep_changes" = "true" ] && (grep -q "mongodb" changed_files.txt || grep -q "cosmos" changed_files.txt); then
             ansible_changes=true
             echo "MongoDB/CosmosDB changes detected, will run Ansible"
@@ -127,6 +131,162 @@ jobs:
 
           echo "Files changed that caused ansible updates:"
           grep -E "ansible/|playbooks/|roles/|templates/|mongodb|cosmos" changed_files.txt || echo "No matching ansible files"
+
+
+
+  # ===========================================================================================
+  # =============================Get Existing Infrastructure Info==============================
+  # ===========================================================================================
+
+
+
+  # New job to get infrastructure info if we don't need to deploy infrastructure
+  get-infrastructure-info:
+    name: Get Existing Infrastructure Info
+    needs: check-changes
+    if: ${{ needs.check-changes.outputs.run_bicep == 'false' && (needs.check-changes.outputs.run_ansible == 'true' || needs.check-changes.outputs.run_webapp == 'true') }}
+    runs-on: ubuntu-latest
+    outputs:
+      BASTION_IP: ${{ steps.get_infrastructure_data.outputs.BASTION_IP }}
+      APP_IP: ${{ steps.get_infrastructure_data.outputs.APP_IP }}
+      MONGODB_CONNECTION_STRING: ${{ steps.get_infrastructure_data.outputs.MONGODB_CONNECTION_STRING }}
+      MONGODB_CONNECTION_STRING_B64: ${{ steps.get_infrastructure_data.outputs.MONGODB_CONNECTION_STRING_B64 }}
+      STORAGE_ACCOUNT: ${{ steps.get_infrastructure_data.outputs.STORAGE_ACCOUNT }}
+      BLOB_ENDPOINT: ${{ steps.get_infrastructure_data.outputs.BLOB_ENDPOINT }}
+      RUNNER_TOKEN: ${{ steps.generate_token.outputs.RUNNER_TOKEN }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # Use our reusable SSH setup
+      - name: Set up SSH keys
+        uses: ./.github/actions/setup-ssh
+        with:
+          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      # Generate a new runner token
+      - name: Generate runner token
+        id: generate_token
+        run: |
+          TOKEN=$(curl -X POST -H "Authorization: token ${{ secrets.PAT_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/${{ env.REPO_NAME }}/actions/runners/registration-token \
+            | jq -r .token)
+
+          # Set the token as environment variable and output.
+          echo "RUNNER_TOKEN=$TOKEN" >> $GITHUB_ENV
+          echo "RUNNER_TOKEN=$TOKEN" >> $GITHUB_OUTPUT
+          echo "::add-mask::$TOKEN"
+
+          # Check if the token is available.
+          echo "Debug: Runner token"
+          echo "PAT token available: ${{ secrets.PAT_TOKEN != '' }}"
+          echo "Runner token available: $([[ -n "$TOKEN" ]] && echo "Yes" || echo "No")"
+          echo "REPO_NAME: ${{ env.REPO_NAME }}"
+
+      # Get the infrastructure info from Azure
+      - name: Get Infrastructure Data
+        id: get_infrastructure_data
+        run: |
+          echo "Getting Bastion IP..."
+          BASTION_IP=$(az deployment group show \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name main \
+            --query "properties.outputs.bastionHostIp.value" \
+            --output tsv 2>/dev/null) || BASTION_IP=""
+
+          if [ -z "$BASTION_IP" ]; then
+            # Try to find the bastion VM/IP directly if deployment output is not available
+            BASTION_IP=$(az vm list-ip-addresses \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --name "${{ env.PROJECT_NAME }}-bastion-vm" \
+              --query "[0].virtualMachine.network.publicIpAddresses[0].ipAddress" \
+              --output tsv 2>/dev/null) || BASTION_IP=""
+          fi
+
+          echo "Getting App server IP..."
+          APP_IP=$(az deployment group show \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name main \
+            --query "properties.outputs.appServerPrivateIp.value" \
+            --output tsv 2>/dev/null) || APP_IP=""
+
+          if [ -z "$APP_IP" ]; then
+            # Try to find the app VM/IP directly
+            APP_IP=$(az vm list-ip-addresses \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --name "${{ env.PROJECT_NAME }}-app-vm" \
+              --query "[0].virtualMachine.network.privateIpAddresses[0]" \
+              --output tsv 2>/dev/null) || APP_IP=""
+          fi
+
+          echo "Getting MongoDB connection string..."
+          MONGODB_CONNECTION_STRING=$(az deployment group show \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name main \
+            --query "properties.outputs.mongoDbConnectionString.value" \
+            --output tsv 2>/dev/null) || MONGODB_CONNECTION_STRING=""
+
+          echo "Getting storage account name..."
+          STORAGE_ACCOUNT=$(az deployment group show \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name main \
+            --query "properties.outputs.storageAccountName.value" \
+            --output tsv 2>/dev/null) || STORAGE_ACCOUNT=""
+
+          if [ -z "$STORAGE_ACCOUNT" ]; then
+            # Try to find storage account directly
+            STORAGE_ACCOUNT=$(az storage account list \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --query "[?starts_with(name, '${{ env.PROJECT_NAME }}')].name" \
+              --output tsv 2>/dev/null | head -1) || STORAGE_ACCOUNT=""
+          fi
+
+          echo "Getting blob endpoint..."
+          if [ -n "$STORAGE_ACCOUNT" ]; then
+            BLOB_ENDPOINT=$(az storage account show \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --name $STORAGE_ACCOUNT \
+              --query "primaryEndpoints.blob" \
+              --output tsv 2>/dev/null) || BLOB_ENDPOINT=""
+          else
+            BLOB_ENDPOINT=""
+          fi
+
+          # Check and display what we found
+          echo "Found resources:"
+          echo "Bastion IP: $BASTION_IP"
+          echo "App IP: $APP_IP"
+          echo "Storage Account: $STORAGE_ACCOUNT"
+          echo "Blob Endpoint: $BLOB_ENDPOINT"
+          echo "MongoDB connection string found: $([ -n "$MONGODB_CONNECTION_STRING" ] && echo "Yes" || echo "No")"
+
+          # Set the outputs for subsequent jobs
+          echo "BASTION_IP=$BASTION_IP" >> $GITHUB_OUTPUT
+          echo "APP_IP=$APP_IP" >> $GITHUB_OUTPUT
+          echo "MONGODB_CONNECTION_STRING=$MONGODB_CONNECTION_STRING" >> $GITHUB_OUTPUT
+          echo "STORAGE_ACCOUNT=$STORAGE_ACCOUNT" >> $GITHUB_OUTPUT
+          echo "BLOB_ENDPOINT=$BLOB_ENDPOINT" >> $GITHUB_OUTPUT
+
+          # Base64 encode MongoDB connection string if it exists
+          if [ -n "$MONGODB_CONNECTION_STRING" ] && [ ${#MONGODB_CONNECTION_STRING} -gt 20 ]; then
+            MONGODB_CONNECTION_STRING_B64=$(echo -n "$MONGODB_CONNECTION_STRING" | base64 -w0)
+            echo "MONGODB_CONNECTION_STRING_B64=$MONGODB_CONNECTION_STRING_B64" >> $GITHUB_OUTPUT
+            echo "Encoded MongoDB connection string (first 10 chars): ${MONGODB_CONNECTION_STRING_B64:0:10}..."
+          else
+            echo "Warning: MongoDB connection string not found or too short"
+          fi
+
+
+
+
+
 
 
 
@@ -354,23 +514,18 @@ jobs:
 
   configure-servers:
     name: Configure Servers with Ansible
-    needs: [check-changes, deploy-infrastructure]
-    if: ${{
-        always() &&
-        (needs.check-changes.outputs.run_ansible == 'true' ||
-        needs.check-changes.outputs.run_bicep == 'true' ||
-        github.event_name == 'workflow_dispatch') &&
-        (needs.deploy-infrastructure.result == 'success' || needs.deploy-infrastructure.result == 'skipped')
-      }}
+    needs: [check-changes, deploy-infrastructure, get-infrastructure-info]
+    if: ${{ needs.check-changes.outputs.run_ansible == 'true' && ((needs.deploy-infrastructure.result == 'success') || (needs.deploy-infrastructure.result == 'skipped' && needs.get-infrastructure-info.result == 'success')) }}
     runs-on: ubuntu-latest
     env:
-      BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP }}
-      APP_IP: ${{ needs.deploy-infrastructure.outputs.APP_IP }}
-      MONGODB_CONNECTION_STRING: ${{ needs.deploy-infrastructure.outputs.MONGODB_CONNECTION_STRING }}
-      MONGODB_CONNECTION_STRING_B64: ${{ needs.deploy-infrastructure.outputs.MONGODB_CONNECTION_STRING_B64 }}
-      STORAGE_ACCOUNT: ${{ needs.deploy-infrastructure.outputs.STORAGE_ACCOUNT }}
-      BLOB_ENDPOINT: ${{ needs.deploy-infrastructure.outputs.BLOB_ENDPOINT }}
-      RUNNER_TOKEN: ${{ needs.deploy-infrastructure.outputs.RUNNER_TOKEN }}
+      BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
+      APP_IP: ${{ needs.deploy-infrastructure.outputs.APP_IP != '' && needs.deploy-infrastructure.outputs.APP_IP || needs.get-infrastructure-info.outputs.APP_IP }}
+      MONGODB_CONNECTION_STRING: ${{ needs.deploy-infrastructure.outputs.MONGODB_CONNECTION_STRING != '' && needs.deploy-infrastructure.outputs.MONGODB_CONNECTION_STRING || needs.get-infrastructure-info.outputs.MONGODB_CONNECTION_STRING }}
+      MONGODB_CONNECTION_STRING_B64: ${{ needs.deploy-infrastructure.outputs.MONGODB_CONNECTION_STRING_B64 != '' && needs.deploy-infrastructure.outputs.MONGODB_CONNECTION_STRING_B64 || needs.get-infrastructure-info.outputs.MONGODB_CONNECTION_STRING_B64 }}
+      STORAGE_ACCOUNT: ${{ needs.deploy-infrastructure.outputs.STORAGE_ACCOUNT != '' && needs.deploy-infrastructure.outputs.STORAGE_ACCOUNT || needs.get-infrastructure-info.outputs.STORAGE_ACCOUNT }}
+      BLOB_ENDPOINT: ${{ needs.deploy-infrastructure.outputs.BLOB_ENDPOINT != '' && needs.deploy-infrastructure.outputs.BLOB_ENDPOINT || needs.get-infrastructure-info.outputs.BLOB_ENDPOINT }}
+      RUNNER_TOKEN: ${{ needs.deploy-infrastructure.outputs.RUNNER_TOKEN != '' && needs.deploy-infrastructure.outputs.RUNNER_TOKEN || needs.get-infrastructure-info.outputs.RUNNER_TOKEN }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -499,13 +654,13 @@ jobs:
   deploy-app:
     name: Deploy Application as Artifact
     runs-on: ubuntu-latest
-    needs: [check-changes, deploy-infrastructure, configure-servers]
+    needs: [check-changes, deploy-infrastructure, configure-servers, get-infrastructure-info]
     env:
-      BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP }}
-      APP_IP: ${{ needs.deploy-infrastructure.outputs.APP_IP }}
+      BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
+      APP_IP: ${{ needs.deploy-infrastructure.outputs.APP_IP != '' && needs.deploy-infrastructure.outputs.APP_IP || needs.get-infrastructure-info.outputs.APP_IP }}
 
     # Only run if webapp files were changed and infrastructure deployment was successful.
-    if: ${{ always() && needs.check-changes.outputs.run_webapp == 'true' && (needs.deploy-infrastructure.result == 'success' || needs.deploy-infrastructure.result == 'skipped') &&(needs.configure-servers.result == 'success' || needs.configure-servers.result == 'skipped') }}
+    if: ${{ needs.check-changes.outputs.run_webapp == 'true' }}
 
     steps:
       # Check out the code from the repository
@@ -527,7 +682,7 @@ jobs:
       # Build the web application
       - name: Build Web App
         run: |
-          # Backup existing app if it exists (via SSH)
+          # Backup existing app if it exists (via SSH) if setup failed.
           if [ "${{ env.APP_IP }}" != "" ] && [ "${{ env.BASTION_IP }}" != "" ]; then
             echo "Creating backup of existing app..."
             ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP" -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$APP_IP "
@@ -608,15 +763,15 @@ jobs:
   # Deploy the artifact to the app server.
   deploy-to-server:
     name: Deploy Artifact to App-Server
-    needs: [deploy-app, deploy-infrastructure, configure-servers]
+    needs: [deploy-app, deploy-infrastructure, configure-servers, get-infrastructure-info]
     runs-on: ubuntu-latest
     env:
-      BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP }}
-      APP_IP: ${{ needs.deploy-infrastructure.outputs.APP_IP }}
-      MONGODB_CONNECTION_STRING: ${{ needs.deploy-infrastructure.outputs.MONGODB_CONNECTION_STRING }}
-      MONGODB_CONNECTION_STRING_B64: ${{ needs.deploy-infrastructure.outputs.MONGODB_CONNECTION_STRING_B64 }}
-      STORAGE_ACCOUNT: ${{ needs.deploy-infrastructure.outputs.STORAGE_ACCOUNT }}
-      BLOB_ENDPOINT: ${{ needs.deploy-infrastructure.outputs.BLOB_ENDPOINT }}
+      BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
+      APP_IP: ${{ needs.deploy-infrastructure.outputs.APP_IP != '' && needs.deploy-infrastructure.outputs.APP_IP || needs.get-infrastructure-info.outputs.APP_IP }}
+      MONGODB_CONNECTION_STRING: ${{ needs.deploy-infrastructure.outputs.MONGODB_CONNECTION_STRING != '' && needs.deploy-infrastructure.outputs.MONGODB_CONNECTION_STRING || needs.get-infrastructure-info.outputs.MONGODB_CONNECTION_STRING }}
+      MONGODB_CONNECTION_STRING_B64: ${{ needs.deploy-infrastructure.outputs.MONGODB_CONNECTION_STRING_B64 != '' && needs.deploy-infrastructure.outputs.MONGODB_CONNECTION_STRING_B64 || needs.get-infrastructure-info.outputs.MONGODB_CONNECTION_STRING_B64 }}
+      STORAGE_ACCOUNT: ${{ needs.deploy-infrastructure.outputs.STORAGE_ACCOUNT != '' && needs.deploy-infrastructure.outputs.STORAGE_ACCOUNT || needs.get-infrastructure-info.outputs.STORAGE_ACCOUNT }}
+      BLOB_ENDPOINT: ${{ needs.deploy-infrastructure.outputs.BLOB_ENDPOINT != '' && needs.deploy-infrastructure.outputs.BLOB_ENDPOINT || needs.get-infrastructure-info.outputs.BLOB_ENDPOINT }}
 
     # Only run if webapp files were changed and infrastructure deployment was successful.
     if: ${{ always() && needs.deploy-app.result == 'success' && (needs.deploy-infrastructure.result == 'success' || needs.deploy-infrastructure.result == 'skipped') }}
@@ -625,18 +780,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set IP variables
-        run: |
-          # Check if environment variables are available and set effective values if not.
-          if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
-            echo "Using fallback IP addresses"
-            echo "EFFECTIVE_APP_IP=10.0.2.4" >> $GITHUB_ENV
-            echo "EFFECTIVE_BASTION_IP=137.116.232.168" >> $GITHUB_ENV
-          else
-            echo "Using outputs from infrastructure deployment"
-            echo "EFFECTIVE_APP_IP=${{ env.APP_IP }}" >> $GITHUB_ENV
-            echo "EFFECTIVE_BASTION_IP=${{ env.BASTION_IP }}" >> $GITHUB_ENV
-          fi
+      # - name: Set IP variables
+      #   run: |
+      #     # Check if environment variables are available and set effective values if not.
+      #     if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
+      #       echo "Using fallback IP addresses"
+      #       echo "EFFECTIVE_APP_IP=10.0.2.4" >> $GITHUB_ENV
+      #       echo "EFFECTIVE_BASTION_IP=137.116.232.168" >> $GITHUB_ENV
+      #     else
+      #       echo "Using outputs from infrastructure deployment"
+      #       echo "EFFECTIVE_APP_IP=${{ env.APP_IP }}" >> $GITHUB_ENV
+      #       echo "EFFECTIVE_BASTION_IP=${{ env.BASTION_IP }}" >> $GITHUB_ENV
+      #     fi
 
       # Use the SSH setup action.
       - name: Set up SSH keys
@@ -675,11 +830,11 @@ jobs:
           path: ./webapp-files
 
       # I deploy-to-server jobbet
-      - name: Remove appsettings.json before deployment
-        run: |
-          echo "Removing appsettings.json from artifact to prevent \
-          overriding server configuration..."
-          rm -f ./webapp-files/appsettings.json
+      # - name: Remove appsettings.json before deployment
+      #   run: |
+      #     echo "Removing appsettings.json from artifact to prevent \
+      #     overriding server configuration..."
+      #     rm -f ./webapp-files/appsettings.json
 
       - name: Create target directory and deploy app
         run: |
