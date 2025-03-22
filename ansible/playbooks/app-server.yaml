@@ -61,21 +61,14 @@
     # Decode MongoDB connection string
     - name: Decode MongoDB connection string
       set_fact:
-        mongodb_connection_string: "{{ mongodb_connection_string_base64 | b64decode }}"
-      when: mongodb_connection_string_base64 is defined and mongodb_connection_string_base64 != '' and mongodb_connection_string_base64 | length > 10
+        mongodb_connection_string: "{{ mongodb_connection_string_base64 | b64decode if mongodb_connection_string_base64 is defined and mongodb_connection_string_base64 != None and mongodb_connection_string_base64 | length > 0 else '' }}"
+      when: mongodb_connection_string_base64 is defined and mongodb_connection_string_base64 != None
       no_log: true
       ignore_errors: yes
 
     - name: Debug MongoDB connection string (without revealing sensitive data)
       debug:
-        msg: "MongoDB connection string tillgänglig: {{ mongodb_connection_string_base64 is defined }}"
-
-    # Decode MongoDB connection string from base64
-    - name: Decode MongoDB connection string from base64
-      set_fact:
-        mongodb_connection_string: "{{ mongodb_connection_string_base64 | b64decode }}"
-      when: mongodb_connection_string_base64 is defined and mongodb_connection_string_base64 | length > 0
-      no_log: true
+        msg: "MongoDB connection string tillgänglig: {{ mongodb_connection_string_base64 is defined and mongodb_connection_string_base64 | length > 0 }}"
 
     # Create application settings file
     - name: Create application settings file
