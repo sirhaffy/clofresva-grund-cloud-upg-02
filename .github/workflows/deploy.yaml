@@ -933,18 +933,9 @@ jobs:
           echo "Creating webapp-files directory..."
           mkdir -p ./webapp-files
 
-          # Check if environment variables are available
-          if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
-            echo "WARNING: IP addresses not set. Using hardcoded values."
-            APP_IP="10.0.2.4"
-            BASTION_IP="137.116.232.168"
-          else
-            APP_IP="${{ env.APP_IP }}"
-            BASTION_IP="${{ env.BASTION_IP }}"
-          fi
-
-          echo "Using App IP: $APP_IP"
-          echo "Using Bastion IP: $BASTION_IP"
+          # Använd endast miljövariabler
+          echo "Using App IP: ${{ env.APP_IP }}"
+          echo "Using Bastion IP: ${{ env.BASTION_IP }}"
 
           echo "Creating target directory on remote server..."
           ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP" -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$APP_IP "sudo mkdir -p /tmp/webapp && sudo chown azureuser:azureuser /tmp/webapp"
@@ -957,6 +948,14 @@ jobs:
             echo 'Deploying application...'
             sudo systemctl stop webapp.service || echo 'Service not running yet'
 
+            echo 'Checking for temporary appsettings file...'
+            if [ -f /var/www/app/appsettings-temp.json ]; then
+              echo 'Temporary appsettings file exists, will restore after deployment'
+              sudo cp /var/www/app/appsettings-temp.json /tmp/appsettings-temp.json
+            else
+              echo 'No temporary appsettings file found'
+            fi
+
             echo 'Removing old files...'
             sudo rm -rf /var/www/app/*
             sudo mkdir -p /var/www/app
@@ -965,10 +964,27 @@ jobs:
             sudo cp -r /tmp/webapp/* /var/www/app/
             sudo chown -R www-data:www-data /var/www/app
 
-            # Säkerhetskontroll: se till att appsettings.json finns, annars återställ från ansible mall
-            if [ ! -f /var/www/app/appsettings.json ]; then
-              echo 'appsettings.json missing, restoring from ansible template...'
+            echo 'Removing appsettings.json and appsettings.Development.json to avoid overrides...'
+            sudo rm -f /var/www/app/appsettings.json
+            sudo rm -f /var/www/app/appsettings.Development.json
+
+            echo 'Restoring appsettings from temporary file if available...'
+            if [ -f /tmp/appsettings-temp.json ]; then
+              echo 'Restoring appsettings from previously saved temporary file'
+              sudo cp /tmp/appsettings-temp.json /var/www/app/appsettings.json
+              sudo chown www-data:www-data /var/www/app/appsettings.json
+            else
+              echo 'No saved temporary file, trying to run Ansible to create one...'
               sudo ansible-playbook -i /etc/ansible/inventories/local.yaml /etc/ansible/playbooks/restore-config.yaml || true
+
+              # Check if appsettings-temp.json was created by Ansible, if so move it
+              if [ -f /var/www/app/appsettings-temp.json ]; then
+                echo 'Moving temporary appsettings file to final location'
+                sudo mv /var/www/app/appsettings-temp.json /var/www/app/appsettings.json
+                sudo chown www-data:www-data /var/www/app/appsettings.json
+              else
+                echo 'WARNING: Could not create or restore appsettings.json'
+              fi
             fi
 
             # Skapa wwwroot om det inte finns
@@ -994,38 +1010,54 @@ jobs:
 
       - name: Verify server configuration
         run: |
-          # Debug-utskrift för att bekräfta variablerna
           echo "Debug miljövariabler:"
           echo "BASTION_IP: ${{ env.BASTION_IP }}"
           echo "APP_IP: ${{ env.APP_IP }}"
 
-          # Använd BARA miljövariabler, inga hårdkodade IP-adresser
           if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
             echo "ERROR: IP-adresser saknas. Kan inte fortsätta utan korrekt infrastrukturdata."
-            echo "BASTION_IP: '${{ env.BASTION_IP }}'"
-            echo "APP_IP: '${{ env.APP_IP }}'"
             exit 1
           fi
 
-          echo "Använder App IP: ${{ env.APP_IP }}"
-          echo "Använder Bastion IP: ${{ env.BASTION_IP }}"
-
-          # SSH och verifiera konfiguration
+          echo "Verifierar serverkonfiguration..."
           ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@${{ env.BASTION_IP }}" -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@${{ env.APP_IP }} "
             echo 'Kontrollerar serverkonfiguration...'
-            if grep -q '{accountname}' /var/www/app/appsettings.json 2>/dev/null; then
-              echo 'VARNING: Standardplaceholders upptäckta i appsettings.json, återställer från mall'
-              sudo ansible-playbook -i /etc/ansible/inventories/local.yaml /etc/ansible/playbooks/restore-config.yaml || true
 
-              # Verifiera igen efter återställning
-              if grep -q '{accountname}' /var/www/app/appsettings.json 2>/dev/null; then
-                echo 'FEL: Kunde inte ersätta placeholders i appsettings.json!'
-                cat /var/www/app/appsettings.json 2>/dev/null || echo 'Kunde inte visa appsettings.json'
+            if [ ! -f /var/www/app/appsettings.json ]; then
+              echo 'ERROR: appsettings.json saknas helt!'
+              exit 0
+            fi
+
+            if grep -q '{accountname}' /var/www/app/appsettings.json; then
+              echo 'VARNING: Standardplaceholders upptäckta i appsettings.json, försöker återställa från mall'
+
+              if [ -f /var/www/app/appsettings-temp.json ]; then
+                echo 'Hittade en temporär appsettings fil, använder den'
+                sudo mv /var/www/app/appsettings-temp.json /var/www/app/appsettings.json
+                sudo chown www-data:www-data /var/www/app/appsettings.json
               else
-                echo 'Framgångsrikt återställt konfiguration från mall'
+                echo 'Ingen temporär fil, kör Ansible för att skapa en'
+                sudo ansible-playbook -i /etc/ansible/inventories/local.yaml /etc/ansible/playbooks/restore-config.yaml || echo 'Ansible misslyckades'
+
+                if [ -f /var/www/app/appsettings-temp.json ]; then
+                  echo 'Flyttar temporär appsettings fil till slutlig plats'
+                  sudo mv /var/www/app/appsettings-temp.json /var/www/app/appsettings.json
+                  sudo chown www-data:www-data /var/www/app/appsettings.json
+                fi
+              fi
+
+              # Verifiera efter försök till åtgärd
+              if grep -q '{accountname}' /var/www/app/appsettings.json; then
+                echo 'ERROR: Kunde fortfarande inte ersätta placeholders!'
+                cat /var/www/app/appsettings.json || echo 'Kunde inte visa innehåll'
+              else
+                echo 'Framgångsrikt återställt konfiguration'
+                echo 'Startar om tjänsten för att tillämpa nya inställningar'
+                sudo systemctl restart webapp.service
               fi
             else
-              echo 'Serverkonfiguration ser korrekt ut.'
+              echo 'Serverkonfiguration ser korrekt ut, kontrollerar innehåll (känslig data maskerad):'
+              grep -v 'ConnectionString' /var/www/app/appsettings.json || echo 'Kunde inte visa innehåll'
             fi
           "
         continue-on-error: true

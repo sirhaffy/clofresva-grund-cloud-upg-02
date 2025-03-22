@@ -76,7 +76,7 @@
     - name: Update application settings file
       template:
         src: templates/appsettings.json.j2
-        dest: /var/www/app/appsettings.json
+        dest: /var/www/app/appsettings-temp.json
         owner: www-data
         group: www-data
         mode: '0644'
