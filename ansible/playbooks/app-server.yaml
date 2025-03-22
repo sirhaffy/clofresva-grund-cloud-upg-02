@@ -50,6 +50,14 @@
         owner: www-data
         group: www-data
 
+    - name: Debug variables
+      debug:
+        msg:
+          - "storage_account: {{ storage_account | default('not set') }}"
+          - "blob_endpoint: {{ blob_endpoint | default('not set') }}"
+          - "container_name: {{ container_name | default('not set') }}"
+          - "mongodb_connection_string length: {{ mongodb_connection_string | length if mongodb_connection_string is defined else 0 }}"
+
     # Decode MongoDB connection string
     - name: Decode MongoDB connection string
       set_fact:

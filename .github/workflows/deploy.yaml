@@ -328,6 +328,13 @@ jobs:
           echo "Testing SSH to app server at $APP_IP via bastion..."
           ssh -i ~/.ssh/id_clofresvagcupg02 -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@$BASTION_IP" azureuser@$APP_IP "echo 'App server connection successful!'" || echo "WARNING: App server connection failed!"
 
+      - name: Debug environment variables
+        run: |
+          echo "PROJECT_NAME: ${{ env.PROJECT_NAME }}"
+          echo "STORAGE_ACCOUNT: ${{ env.STORAGE_ACCOUNT }}"
+          echo "BLOB_ENDPOINT: ${{ env.BLOB_ENDPOINT }}"
+          echo "MONGODB_CONNECTION_STRING length: ${#MONGODB_CONNECTION_STRING}"
+
       # Run Ansible to configure servers
       - name: Run Ansible
         run: |
@@ -355,11 +362,13 @@ jobs:
           echo "      ansible_user: azureuser" >> ./ansible/inventories/azure_rm.yaml
           echo "      ansible_ssh_private_key_file: ~/.ssh/id_clofresvagcupg02" >> ./ansible/inventories/azure_rm.yaml
           echo "      ansible_ssh_common_args: '-o ProxyCommand=\"ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@$BASTION_IP\"'" >> ./ansible/inventories/azure_rm.yaml
+
           echo "  vars:" >> ./ansible/inventories/azure_rm.yaml
           echo "    project_name: ${{ env.PROJECT_NAME }}" >> ./ansible/inventories/azure_rm.yaml
           echo "    storage_account: ${{ env.STORAGE_ACCOUNT }}" >> ./ansible/inventories/azure_rm.yaml
           echo "    blob_endpoint: ${{ env.BLOB_ENDPOINT }}" >> ./ansible/inventories/azure_rm.yaml
           echo "    container_name: appdata" >> ./ansible/inventories/azure_rm.yaml
+
           echo "    github_repo: ${{ env.REPO_NAME }}" >> ./ansible/inventories/azure_rm.yaml
           echo "    github_runner_token: ***" >> ./ansible/inventories/azure_rm.yaml
           # Säkert sätt att lägga till token i filen
