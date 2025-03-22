@@ -662,7 +662,7 @@ jobs:
   deploy-app:
     name: Deploy Application as Artifact
 
-    needs: [check-changes, get-infrastructure-info]
+    needs: [check-changes, get-infrastructure-info, configure-servers]
     if: ${{ needs.check-changes.outputs.run_webapp == 'true' || needs.configure-servers.result == 'success' }}
 
     runs-on: ubuntu-latest
@@ -837,12 +837,12 @@ jobs:
           name: webapp
           path: ./webapp-files
 
-      # I deploy-to-server jobbet
-      # - name: Remove appsettings.json before deployment
-      #   run: |
-      #     echo "Removing appsettings.json from artifact to prevent \
-      #     overriding server configuration..."
-      #     rm -f ./webapp-files/appsettings.json
+      - name: Remove appsettings.json before deployment
+        run: |
+          echo "Removing appsettings.json from artifact to prevent overriding server configuration..."
+          rm -f ./webapp-files/appsettings.json
+          echo "Files after removal:"
+          ls -la ./webapp-files/
 
       - name: Create target directory and deploy app
         run: |
@@ -880,6 +880,12 @@ jobs:
             echo 'Copy files to webapp directory...'
             sudo cp -r /tmp/webapp/* /var/www/app/
             sudo chown -R www-data:www-data /var/www/app
+
+            # Säkerhetskontroll: se till att appsettings.json finns, annars återställ från ansible mall
+            if [ ! -f /var/www/app/appsettings.json ]; then
+              echo 'appsettings.json missing, restoring from ansible template...'
+              sudo ansible-playbook -i /etc/ansible/inventories/local.yaml /etc/ansible/playbooks/restore-config.yaml || true
+            fi
 
             # Skapa wwwroot om det inte finns
             sudo mkdir -p /var/www/app/wwwroot

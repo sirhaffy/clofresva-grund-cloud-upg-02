@@ -80,7 +80,7 @@
         owner: www-data
         group: www-data
         mode: '0644'
-      ignore_errors: yes
+      notify: restart webapp service
 
     # Verify application settings file
     - name: Verify application settings file
