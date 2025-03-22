@@ -391,7 +391,10 @@ jobs:
           echo "BLOB_ENDPOINT: ${{ env.BLOB_ENDPOINT }}"
           echo "REPO_NAME: ${{ env.REPO_NAME }}"
           echo "RUNNER_TOKEN available: ${{ env.RUNNER_TOKEN != '' }}"
-          echo "RUNNER_TOKEN length: ${#RUNNER_TOKEN}" # Safe to show length but not value
+          echo "RUNNER_TOKEN length: ${#RUNNER_TOKEN}"
+
+          echo "RUNNER_TOKEN from output: ${{ needs.deploy-infrastructure.outputs.RUNNER_TOKEN != '' }}"
+          echo "RUNNER_TOKEN from env: $([[ -n \"$RUNNER_TOKEN\" ]] && echo 'Yes' || echo 'No')"
 
       - name: Ensure Ansible config exists
         run: |
@@ -654,6 +657,12 @@ jobs:
         with:
           name: webapp
           path: ./webapp-files
+
+        # Remove appsettings.json from the artifact to avoid overriding server-side configuration
+      - name: Remove appsettings.json from artifact to preserve server-side configuration
+        run: |
+          echo "Removing appsettings.json from webapp files to avoid overriding server configuration..."
+          rm -f ./webapp-files/appsettings.json ./webapp-files/appsettings.*.json
 
       - name: Create target directory and deploy app
         run: |

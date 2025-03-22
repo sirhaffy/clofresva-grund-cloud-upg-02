@@ -81,9 +81,6 @@
         group: www-data
         mode: '0644'
       ignore_errors: yes
-      register: app_settings_result
-      changed_when: true
-      notify: restart webapp service
 
     # Verify application settings file
     - name: Verify application settings file
