@@ -68,16 +68,21 @@
 
     - name: Debug MongoDB connection string (without revealing sensitive data)
       debug:
-        msg: "MongoDB connection string tillgänglig: {{ mongodb_connection_string_base64 is defined and mongodb_connection_string_base64 | length > 0 }}"
+        msg: "MongoDB connection string is {{ 'available' if mongodb_connection_string_base64 is defined and mongodb_connection_string_base64|length > 0 else 'NOT available' }}"
 
     # Create application settings file
-    - name: Create application settings file
+    - name: Update application settings file
       template:
         src: templates/appsettings.json.j2
         dest: /var/www/app/appsettings.json
         owner: www-data
         group: www-data
         mode: '0644'
+      vars:
+        storage_account: "{{ storage_account }}"
+        blob_endpoint: "{{ blob_endpoint }}"
+        container_name: "{{ container_name | default('appdata') }}"
+        subscriber_repository_type: "inmemory"  # Use inmemory as a fallback
       register: app_settings_result
       changed_when: true
       notify: restart webapp service

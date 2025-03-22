@@ -206,6 +206,9 @@ jobs:
             --query "properties.outputs.dotNetMongoConnectionString.value" \
             --output tsv)
 
+          # Check if the connection string is available
+          echo "Connection string available: $([[ -n "$MONGODB_CONNECTION_STRING" ]] && echo "Yes" || echo "No")"
+
           echo "Getting storage account name..."
           STORAGE_ACCOUNT=$(az deployment group show \
             --resource-group ${{ env.RESOURCE_GROUP }} \
@@ -601,23 +604,12 @@ jobs:
             echo 'Deploying application...'
             sudo systemctl stop webapp.service || echo 'Service not running yet'
 
-            # Spara befintlig appsettings.json om den finns
-            if [ -f /var/www/app/appsettings.json ]; then
-              sudo cp /var/www/app/appsettings.json /tmp/appsettings.json.bak
-            fi
-
             echo 'Removing old files...'
             sudo rm -rf /var/www/app/*
             sudo mkdir -p /var/www/app
 
             echo 'Copy files to webapp directory...'
             sudo cp -r /tmp/webapp/* /var/www/app/
-
-            # Återställ appsettings.json om den fanns
-            if [ -f /tmp/appsettings.json.bak ]; then
-              sudo cp /tmp/appsettings.json.bak /var/www/app/appsettings.json
-            fi
-
             sudo chown -R www-data:www-data /var/www/app
 
             # Skapa wwwroot om det inte finns
