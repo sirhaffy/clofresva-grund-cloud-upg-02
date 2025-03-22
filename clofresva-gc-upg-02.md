@@ -30,17 +30,14 @@ Infrastrukturen hos Azure:
   - Reverse Proxy NSG
   - Blob Storage NSG
   - Cosmos DB NSG
+  - NSG som tillåter SSH (22) trafik från Bastion till App Server.
+  - NSG som tillåter HTTP (5000) trafik från Reverse Proxy Server till App Server.
 
 - VM (Virtual Machine)
   - Bastion Server 
     - Ubuntu Server - 24.2.0-LTS
     - Publikt IP
     - Öppen för SSH (22 och 2222)
-    - NSG (Network Security Group) som tillåter inkommande trafik från Internet.
-    - NSG som tillåter inkommande trafik från Bastion till App Server.
-    - NSG som tillåter inkommande trafik från Bastion till Reverse Proxy Server.
-    - NSG som tillåter inkommande trafik från Bastion till Blob Storage. ??
-    - NSG som tillåter inkommande trafik från Bastion till Cosmos DB. ??
     - TODO: Fail2ban
     - TODO: PortKnocking 
 - App Server

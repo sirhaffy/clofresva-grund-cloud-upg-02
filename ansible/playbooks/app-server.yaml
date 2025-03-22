@@ -252,5 +252,5 @@
     # Wait for service to start.
     - name: wait for service to start
       pause:
-        seconds: 5
+        seconds: 10
       listen: restart webapp service

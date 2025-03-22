@@ -23,7 +23,17 @@ env:
   REPO_NAME: ${{ secrets.REPO_NAME }}
   # Note: We don't set RUNNER_TOKEN here because it's generated dynamically
 
+
 jobs:
+
+
+
+  # ===========================================================================================
+  # =================================Check Changed Files=======================================
+  # ===========================================================================================
+
+
+
   # Check for changes to determine what needs to be run.
   check-changes:
     name: Check Changed Files
@@ -122,6 +132,14 @@ jobs:
           echo "Files changed that caused ansible updates:"
           grep -E "ansible/|playbooks/|roles/|templates/|mongodb|cosmos" changed_files.txt || echo "No matching ansible files"
 
+
+
+  # ===========================================================================================
+  # ==============================Deploy Azure Infrastructure==================================
+  # ===========================================================================================
+
+
+
   # Check if dotnet app files were changed.
   deploy-infrastructure:
     name: Deploy Azure Infrastructure
@@ -129,11 +147,12 @@ jobs:
     if: ${{ needs.check-changes.outputs.run_bicep == 'true' }}
     runs-on: ubuntu-latest
     outputs:
-      BASTION_IP: ${{ steps.outputs.outputs.BASTION_IP }}
-      APP_IP: ${{ steps.outputs.outputs.APP_IP }}
-      MONGODB_CONNECTION_STRING: ${{ steps.outputs.outputs.MONGODB_CONNECTION_STRING }}
-      STORAGE_ACCOUNT: ${{ steps.outputs.outputs.STORAGE_ACCOUNT }}
-      BLOB_ENDPOINT: ${{ steps.outputs.outputs.BLOB_ENDPOINT }}
+      BASTION_IP: ${{ steps.deployment_data.outputs.BASTION_IP }}
+      APP_IP: ${{ steps.deployment_data.outputs.APP_IP }}
+      MONGODB_CONNECTION_STRING: ${{ steps.deployment_data.outputs.MONGODB_CONNECTION_STRING }}
+      STORAGE_ACCOUNT: ${{ steps.deployment_data.outputs.STORAGE_ACCOUNT }}
+      BLOB_ENDPOINT: ${{ steps.deployment_data.outputs.BLOB_ENDPOINT }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -182,9 +201,9 @@ jobs:
 
       # Get the outputs from the deployment
       - name: Get Deployment Outputs
-        id: outputs
+        id: deployment_data
         run: |
-          # Get outputs like storage account, blob endpoint, etc.
+
           echo "Getting Bastion IP..."
           BASTION_IP=$(az deployment group show \
             --resource-group ${{ env.RESOURCE_GROUP }} \
@@ -223,30 +242,28 @@ jobs:
             --query "properties.outputs.blobEndpoint.value" \
             --output tsv)
 
-
-          Check if these values are empty or not
+          # Check if these values are empty or not
             if [ -z "$STORAGE_ACCOUNT" ] || [ -z "$BLOB_ENDPOINT" ]; then
               echo "WARNING: Storage values not properly set, using hardcoded values"
               STORAGE_ACCOUNT="clofresvagcupg02storage"
               BLOB_ENDPOINT="https://clofresvagcupg02storage.blob.core.windows.net/"
             fi
 
+          # Output the values to the console.
           echo "Bastion IP: $BASTION_IP"
           echo "App IP: $APP_IP"
           echo "Storage Account: $STORAGE_ACCOUNT"
           echo "Blob Endpoint: $BLOB_ENDPOINT"
           echo "MongoDB connection string length: ${#MONGODB_CONNECTION_STRING}"
 
-          # Sätt variabler i BÅDE miljövariabler OCH outputs
-
-          # 1. Miljövariabler (för detta job)
+          # Set the environment variables.
           echo "BASTION_IP=$BASTION_IP" >> $GITHUB_ENV
           echo "APP_IP=$APP_IP" >> $GITHUB_ENV
           echo "MONGODB_CONNECTION_STRING=$MONGODB_CONNECTION_STRING" >> $GITHUB_ENV
           echo "STORAGE_ACCOUNT=$STORAGE_ACCOUNT" >> $GITHUB_ENV
           echo "BLOB_ENDPOINT=$BLOB_ENDPOINT" >> $GITHUB_ENV
 
-          # 2. Outputs (för efterföljande jobb)
+          # Set the outputs for subsequent jobs.
           echo "BASTION_IP=$BASTION_IP" >> $GITHUB_OUTPUT
           echo "APP_IP=$APP_IP" >> $GITHUB_OUTPUT
           echo "MONGODB_CONNECTION_STRING=$MONGODB_CONNECTION_STRING" >> $GITHUB_OUTPUT
@@ -296,6 +313,14 @@ jobs:
           # Test SSH to app server via bastion
           echo "Testing SSH to app server at $APP_IP via bastion..."
           ssh -i ~/.ssh/clofresva_gc_upg02_azure_key -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP" azureuser@$APP_IP "echo 'App server connection successful!'" || echo "WARNING: App server connection failed!"
+
+
+
+  # ===========================================================================================
+  # ==============================Configure Servers with Ansible===============================
+  # ===========================================================================================
+
+
 
   configure-servers:
     name: Configure Servers with Ansible
@@ -428,6 +453,14 @@ jobs:
           fi
         continue-on-error: true # Continue even if Ansible fails
 
+
+
+  # ===========================================================================================
+  # =============================Deploy Application as Artifact===============================
+  # ===========================================================================================
+
+
+
   # Build and deploy the dotnet app as an artifact and upload, if files were changed.
   deploy-app:
     name: Deploy Application as Artifact
@@ -529,6 +562,14 @@ jobs:
           name: webapp
           path: ./publish
           retention-days: 1
+
+
+
+  # ===========================================================================================
+  # ==============================Deploy Artifact to App-Server================================
+  # ===========================================================================================
+
+
 
   # Deploy the artifact to the app server.
   deploy-to-server:
