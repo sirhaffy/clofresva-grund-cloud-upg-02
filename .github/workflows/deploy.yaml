@@ -88,10 +88,15 @@ jobs:
           fi
 
           # Check for webapp changes.
-          if grep -q "WebbApp/" changed_files.txt || \
-             grep -q "\.cs$" changed_files.txt || \
-             grep -q "\.csproj$" changed_files.txt || \
-             grep -q "wwwroot/" changed_files.txt; then
+          if grep -i -q "WebbApp" changed_files.txt || \
+            grep -i -q "\.cs$" changed_files.txt || \
+            grep -i -q "\.csproj$" changed_files.txt || \
+            grep -i -q "\.cshtml$" changed_files.txt || \
+            grep -i -q "wwwroot" changed_files.txt || \
+            grep -i -q "Controllers" changed_files.txt || \
+            grep -i -q "Views" changed_files.txt || \
+            grep -i -q "Models" changed_files.txt; then
+            echo "Found webapp changes"
             webapp_changes=true
           fi
 
@@ -120,6 +125,11 @@ jobs:
           echo "==================== CHANGE DETECTION SUMMARY ===================="
           echo -e "$summary"
           echo "================================================================="
+
+          echo "DEBUG - Change detection flags:"
+          echo "Infrastructure changes (bicep): $bicep_changes"
+          echo "Configuration changes (ansible): $ansible_changes"
+          echo "Application changes (webapp): $webapp_changes"
 
           # List the changed files.
           cat changed_files.txt
