@@ -14,15 +14,11 @@ on:
         description: 'Run full infrastructure deployment'
         required: false
         default: 'false'
-
-# Environment variables
 env:
   PROJECT_NAME: ${{ secrets.PROJECT_NAME }}
   RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
   LOCATION: northeurope
   REPO_NAME: ${{ secrets.REPO_NAME }}
-  # Note: We don't set RUNNER_TOKEN here because it's generated dynamically
-
 
 jobs:
 
@@ -53,7 +49,8 @@ jobs:
       - name: Check changed files
         id: check_files
         run: |
-          # Check if this is a manual trigger (workflow_dispatch)
+
+          # Check if this is a manual trigger (workflow_dispatch).
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo "Manual workflow run - will execute all steps"
             echo "run_bicep=true" >> $GITHUB_OUTPUT
@@ -64,22 +61,22 @@ jobs:
             exit 0
           fi
 
-          # For push/PR events, check what files changed
+          # For push/PR events, check what files changed.
           git diff --name-only HEAD^ HEAD > changed_files.txt
 
-          # Initialize change flags
+          # Initialize change flags.
           bicep_changes=false
           ansible_changes=false
           webapp_changes=false
 
-          # Check for infrastructure changes
+          # Check for infrastructure changes.
           if grep -q "infrastructure/" changed_files.txt || \
             grep -q "bicep/" changed_files.txt || \
             grep -q "\.bicep$" changed_files.txt; then
             bicep_changes=true
           fi
 
-          # Check for Ansible changes
+          # Check for Ansible changes.
           if grep -q "ansible/" changed_files.txt || \
             grep -q "playbooks/" changed_files.txt || \
             grep -q "roles/" changed_files.txt || \
@@ -89,7 +86,7 @@ jobs:
             ansible_changes=true
           fi
 
-          # Check for webapp changes
+          # Check for webapp changes.
           if grep -q "WebbApp/" changed_files.txt || \
              grep -q "\.cs$" changed_files.txt || \
              grep -q "\.csproj$" changed_files.txt || \
@@ -97,18 +94,18 @@ jobs:
             webapp_changes=true
           fi
 
-          # Set outputs based on changes
+          # Set outputs based on changes.
           echo "run_bicep=$bicep_changes" >> $GITHUB_OUTPUT
           echo "run_ansible=$ansible_changes" >> $GITHUB_OUTPUT
           echo "run_webapp=$webapp_changes" >> $GITHUB_OUTPUT
 
-          # Determine if any changes were detected
+          # Determine if any changes were detected.
           if [ "$bicep_changes" = "true" ] && (grep -q "mongodb" changed_files.txt || grep -q "cosmos" changed_files.txt); then
             ansible_changes=true
             echo "MongoDB/CosmosDB changes detected, will run Ansible"
           fi
 
-          # Create a change summary
+          # Create a change summary.
           summary="Changes detected:\n"
           summary+="  Infrastructure: $bicep_changes\n"
           summary+="  Configuration: $ansible_changes\n"
@@ -120,9 +117,8 @@ jobs:
           echo -e "$summary"
           echo "================================================================="
 
+          # List the changed files.
           cat changed_files.txt
-
-          # Add in the check-changes job
 
       - name: Debug changes
         run: |
@@ -152,6 +148,7 @@ jobs:
       MONGODB_CONNECTION_STRING: ${{ steps.deployment_data.outputs.MONGODB_CONNECTION_STRING }}
       STORAGE_ACCOUNT: ${{ steps.deployment_data.outputs.STORAGE_ACCOUNT }}
       BLOB_ENDPOINT: ${{ steps.deployment_data.outputs.BLOB_ENDPOINT }}
+      RUNNER_TOKEN: ${{ steps.generate_token.outputs.RUNNER_TOKEN }}
 
     steps:
       - name: Checkout code
@@ -177,9 +174,11 @@ jobs:
             https://api.github.com/repos/${{ env.REPO_NAME }}/actions/runners/registration-token \
             | jq -r .token)
 
+          # Set the token as an environment variable.
           echo "RUNNER_TOKEN=$TOKEN" >> $GITHUB_ENV
           echo "::add-mask::$TOKEN"
 
+          # Check if the token is available.
           echo "Debug: Runner token"
           echo "PAT token available: ${{ secrets.PAT_TOKEN != '' }}"
           echo "REPO_NAME: ${{ env.REPO_NAME }}"
@@ -211,12 +210,24 @@ jobs:
             --query "properties.outputs.bastionHostIp.value" \
             --output tsv)
 
+          # Check if the bastion IP is available
+          echo "Bastion IP available: $([[ -n "$BASTION_IP" ]] && echo "Yes" || echo "No")"
+
+          # Debug: Print the Bastion IP
+          echo "Bastion IP: $BASTION_IP"
+
           echo "Getting App server IP..."
           APP_IP=$(az deployment group show \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --name main \
             --query "properties.outputs.appServerPrivateIp.value" \
             --output tsv)
+
+          # Check if the app IP is available
+          echo "App IP available: $([[ -n "$APP_IP" ]] && echo "Yes" || echo "No")"
+
+          # Debug: Print the App IP
+          echo "App IP: $APP_IP"
 
           echo "Getting MongoDB connection string..."
           MONGODB_CONNECTION_STRING=$(az deployment group show \
@@ -235,6 +246,12 @@ jobs:
             --query "properties.outputs.storageAccountName.value" \
             --output tsv)
 
+          # Check if the storage account is available
+          echo "Storage account available: $([[ -n "$STORAGE_ACCOUNT" ]] && echo "Yes" || echo "No")"
+
+          # Debug: Print the storage account name
+          echo "Storage account: $STORAGE_ACCOUNT"
+
           echo "Getting blob endpoint..."
           BLOB_ENDPOINT=$(az deployment group show \
             --resource-group ${{ env.RESOURCE_GROUP }} \
@@ -242,12 +259,11 @@ jobs:
             --query "properties.outputs.blobEndpoint.value" \
             --output tsv)
 
-          # Check if these values are empty or not
-            if [ -z "$STORAGE_ACCOUNT" ] || [ -z "$BLOB_ENDPOINT" ]; then
-              echo "WARNING: Storage values not properly set, using hardcoded values"
-              STORAGE_ACCOUNT="clofresvagcupg02storage"
-              BLOB_ENDPOINT="https://clofresvagcupg02storage.blob.core.windows.net/"
-            fi
+          # Check if the blob endpoint is available
+          echo "Blob endpoint available: $([[ -n "$BLOB_ENDPOINT" ]] && echo "Yes" || echo "No")"
+
+          # Debug: Print the Blob endpoint
+          echo "Blob endpoint: $BLOB_ENDPOINT"
 
           # Output the values to the console.
           echo "Bastion IP: $BASTION_IP"

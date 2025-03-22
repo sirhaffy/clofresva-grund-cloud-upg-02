@@ -60,6 +60,11 @@ public class AzureBlobImageService : IImageService
         string blobEndpoint = _configuration["Storage:BlobEndpoint"] ?? "";
         string containerName = _configuration["Storage:ContainerName"] ?? "appdata";
 
+        // todo: Remove after
+        _logger.LogInformation("Gets blobEndpoint: {BlobEndpoint}", blobEndpoint);
+        _logger.LogInformation("Gets storageAccount: {StorageAccount}", storageAccount);
+        _logger.LogInformation("Gets containerName: {ContainerName}", containerName);
+
         if (string.IsNullOrEmpty(blobEndpoint))
         {
             if (string.IsNullOrEmpty(storageAccount))
