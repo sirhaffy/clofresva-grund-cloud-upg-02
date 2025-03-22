@@ -170,6 +170,15 @@ jobs:
           echo "Files changed that caused ansible updates:"
           grep -E "ansible/|playbooks/|roles/|templates/|mongodb|cosmos" changed_files.txt || echo "No matching ansible files"
 
+          echo "Files changed that caused webapp updates:"
+          grep -i "\.cs" changed_files.txt || echo "No matching .cs files"
+          grep -i "\.csproj" changed_files.txt || echo "No matching .csproj files"
+          grep -i "WebbApp" changed_files.txt || echo "No matching WebbApp directory"
+          grep -i "wwwroot" changed_files.txt || echo "No matching wwwroot directory"
+          grep -i "Controllers" changed_files.txt || echo "No matching Controllers directory"
+          grep -i "Views" changed_files.txt || echo "No matching Views directory"
+          grep -i "Models" changed_files.txt || echo "No matching Models directory
+
 
 
   # ===========================================================================================
