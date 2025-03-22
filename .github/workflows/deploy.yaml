@@ -143,8 +143,10 @@ jobs:
   # New job to get infrastructure info if we don't need to deploy infrastructure
   get-infrastructure-info:
     name: Get Existing Infrastructure Info
+
     needs: check-changes
     if: ${{ needs.check-changes.outputs.run_bicep == 'false' && (needs.check-changes.outputs.run_ansible == 'true' || needs.check-changes.outputs.run_webapp == 'true') }}
+
     runs-on: ubuntu-latest
     outputs:
       BASTION_IP: ${{ steps.get_infrastructure_data.outputs.BASTION_IP }}
@@ -515,7 +517,13 @@ jobs:
   configure-servers:
     name: Configure Servers with Ansible
     needs: [check-changes, deploy-infrastructure, get-infrastructure-info]
-    if: ${{ needs.check-changes.outputs.run_ansible == 'true' && ((needs.deploy-infrastructure.result == 'success') || (needs.deploy-infrastructure.result == 'skipped' && needs.get-infrastructure-info.result == 'success')) }}
+    if: ${{
+        needs.check-changes.outputs.run_ansible == 'true' &&
+        ((needs.deploy-infrastructure.result == 'success') ||
+        (needs.deploy-infrastructure.result == 'skipped' &&
+        needs.get-infrastructure-info.result == 'success'))
+      }}
+
     runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
@@ -653,14 +661,14 @@ jobs:
   # Build and deploy the dotnet app as an artifact and upload, if files were changed.
   deploy-app:
     name: Deploy Application as Artifact
-    runs-on: ubuntu-latest
+
     needs: [check-changes, get-infrastructure-info]
+    if: ${{ needs.check-changes.outputs.run_webapp == 'true' }}
+
+    runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
       APP_IP: ${{ needs.deploy-infrastructure.outputs.APP_IP != '' && needs.deploy-infrastructure.outputs.APP_IP || needs.get-infrastructure-info.outputs.APP_IP }}
-
-    # Only run if webapp files were changed and infrastructure deployment was successful.
-    if: ${{ needs.check-changes.outputs.run_webapp == 'true' }}
 
     steps:
       # Check out the code from the repository
@@ -763,7 +771,10 @@ jobs:
   # Deploy the artifact to the app server.
   deploy-to-server:
     name: Deploy Artifact to App-Server
-    needs: [deploy-app, get-infrastructure-info]
+
+    needs: [deploy-app, get-infrastructure-info, configure-servers]
+    if: ${{ needs.deploy-app.result == 'success' && needs.get-infrastructure-info.result == 'success' }}
+
     runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
@@ -772,9 +783,6 @@ jobs:
       MONGODB_CONNECTION_STRING_B64: ${{ needs.deploy-infrastructure.outputs.MONGODB_CONNECTION_STRING_B64 != '' && needs.deploy-infrastructure.outputs.MONGODB_CONNECTION_STRING_B64 || needs.get-infrastructure-info.outputs.MONGODB_CONNECTION_STRING_B64 }}
       STORAGE_ACCOUNT: ${{ needs.deploy-infrastructure.outputs.STORAGE_ACCOUNT != '' && needs.deploy-infrastructure.outputs.STORAGE_ACCOUNT || needs.get-infrastructure-info.outputs.STORAGE_ACCOUNT }}
       BLOB_ENDPOINT: ${{ needs.deploy-infrastructure.outputs.BLOB_ENDPOINT != '' && needs.deploy-infrastructure.outputs.BLOB_ENDPOINT || needs.get-infrastructure-info.outputs.BLOB_ENDPOINT }}
-
-    # Only run if the app was successfully built and deployed.
-    if: ${{ needs.deploy-app.result == 'success' }}
 
     steps:
       - name: Checkout code
