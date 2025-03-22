@@ -1,0 +1,54 @@
+name: 'Setup SSH for Azure'
+description: 'Sets up SSH configuration for connecting to Azure VMs via Bastion'
+
+inputs:
+  ssh_private_key:
+    description: 'SSH private key'
+    required: true
+  bastion_ip:
+    description: 'Bastion server IP address'
+    required: false
+    default: ''
+  app_ip:
+    description: 'App server IP address'
+    required: false
+    default: ''
+
+runs:
+  using: "composite"
+  steps:
+    - name: Create SSH directory
+      shell: bash
+      run: mkdir -p ~/.ssh && chmod 700 ~/.ssh
+
+    - name: Install SSH key
+      shell: bash
+      run: |
+        echo "${{ inputs.ssh_private_key }}" > ~/.ssh/clofresva_gc_upg02_azure_key
+        chmod 600 ~/.ssh/clofresva_gc_upg02_azure_key
+
+    - name: Configure SSH options
+      shell: bash
+      run: |
+        cat > ~/.ssh/config << EOF
+        Host *
+          StrictHostKeyChecking no
+          UserKnownHostsFile=/dev/null
+          ServerAliveInterval 60
+          ServerAliveCountMax 30
+          ConnectTimeout 10
+        EOF
+        chmod 600 ~/.ssh/config
+
+    - name: Test SSH configuration
+      shell: bash
+      run: |
+        if [[ -n "${{ inputs.bastion_ip }}" ]]; then
+          echo "Testing SSH connection to bastion host..."
+          ssh -i ~/.ssh/clofresva_gc_upg02_azure_key -o ConnectTimeout=10 azureuser@${{ inputs.bastion_ip }} "echo 'Bastion connection successful!'" || echo "WARNING: Bastion connection failed!"
+
+          if [[ -n "${{ inputs.app_ip }}" ]]; then
+            echo "Testing SSH connection to app server via bastion..."
+            ssh -i ~/.ssh/clofresva_gc_upg02_azure_key -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@${{ inputs.bastion_ip }}" azureuser@${{ inputs.app_ip }} "echo 'App server connection successful!'" || echo "WARNING: App server connection failed!"
+          fi
+        fi

@@ -16,7 +16,7 @@
     "DatabaseName": "cloudsoft",
     "CollectionName": "subscribers"
   },
-  "SUBSCRIBER_REPOSITORY": "cosmos",
+  "SUBSCRIBER_REPOSITORY": "{{ subscriber_repository_type | default('cosmos') }}",
   "FEATUREFLAGS": {
     "USEAZURESTORAGE": {% if storage_account is defined and storage_account != '' %}true{% else %}false{% endif %}
   }

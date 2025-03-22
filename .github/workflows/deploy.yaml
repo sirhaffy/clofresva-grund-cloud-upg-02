@@ -45,9 +45,7 @@ jobs:
         run: |
           # Check if this is a manual trigger (workflow_dispatch)
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "Manual workflow run with full_deployment: ${{ github.event.inputs.full_deployment }}"
-
-            # Always run everything on manual trigger
+            echo "Manual workflow run - will execute all steps"
             echo "run_bicep=true" >> $GITHUB_OUTPUT
             echo "run_ansible=true" >> $GITHUB_OUTPUT
             echo "run_webapp=true" >> $GITHUB_OUTPUT
@@ -56,35 +54,37 @@ jobs:
             exit 0
           fi
 
-          # For push events, check what files changed
-          echo "Checking changed files..."
+          # For push/PR events, check what files changed
           git diff --name-only HEAD^ HEAD > changed_files.txt
-
-          # List all changed files for debugging
-          echo "All changed files:"
-          cat changed_files.txt
 
           # Initialize change flags
           bicep_changes=false
           ansible_changes=false
           webapp_changes=false
 
-          # Use more comprehensive patterns for infrastructure changes
-          if grep -E "infrastructure/|bicep/|\.bicep$|cosmosdb|mongodb|cosmos" changed_files.txt; then
+          # Check for infrastructure changes
+          if grep -q "infrastructure/" changed_files.txt || \
+            grep -q "bicep/" changed_files.txt || \
+            grep -q "\.bicep$" changed_files.txt; then
             bicep_changes=true
-            echo "Infrastructure changes detected!"
           fi
 
-          # Use broader patterns for Ansible changes
-          if grep -E "ansible/|playbooks/|roles/|templates/|mongodb|cosmos|appsettings|connection|Program\.cs" changed_files.txt; then
+          # Check for Ansible changes
+          if grep -q "ansible/" changed_files.txt || \
+            grep -q "playbooks/" changed_files.txt || \
+            grep -q "roles/" changed_files.txt || \
+            grep -q "templates/" changed_files.txt || \
+            grep -q "mongodb" changed_files.txt || \
+            grep -q "cosmos" changed_files.txt; then
             ansible_changes=true
-            echo "Ansible changes detected!"
           fi
 
-          # Use broader patterns for webapp changes
-          if grep -E "WebbApp/|\.cs$|\.csproj$|\.cshtml$|wwwroot/|Views/|Controllers/|Services/|Models/|Program\.cs" changed_files.txt; then
+          # Check for webapp changes
+          if grep -q "WebbApp/" changed_files.txt || \
+             grep -q "\.cs$" changed_files.txt || \
+             grep -q "\.csproj$" changed_files.txt || \
+             grep -q "wwwroot/" changed_files.txt; then
             webapp_changes=true
-            echo "Web app changes detected!"
           fi
 
           # Set outputs based on changes
@@ -92,11 +92,10 @@ jobs:
           echo "run_ansible=$ansible_changes" >> $GITHUB_OUTPUT
           echo "run_webapp=$webapp_changes" >> $GITHUB_OUTPUT
 
-          # Any MongoDB/CosmosDB related changes should trigger Ansible too
-          if grep -E "mongodb|cosmos|connection|appsettings|Program\.cs" changed_files.txt; then
+          # Determine if any changes were detected
+          if [ "$bicep_changes" = "true" ] && (grep -q "mongodb" changed_files.txt || grep -q "cosmos" changed_files.txt); then
             ansible_changes=true
             echo "MongoDB/CosmosDB changes detected, will run Ansible"
-            echo "run_ansible=true" >> $GITHUB_OUTPUT
           fi
 
           # Create a change summary
@@ -106,17 +105,14 @@ jobs:
           summary+="  Web Application: $webapp_changes\n"
           echo "change_summary=$summary" >> $GITHUB_OUTPUT
 
-          # Determine if any changes were detected
-          if [ "$bicep_changes" = "true" ] || [ "$ansible_changes" = "true" ] || [ "$webapp_changes" = "true" ]; then
-            echo "changes_detected=true" >> $GITHUB_OUTPUT
-          else
-            echo "changes_detected=false" >> $GITHUB_OUTPUT
-          fi
-
           # Echo the changes for the log
           echo "==================== CHANGE DETECTION SUMMARY ===================="
           echo -e "$summary"
           echo "================================================================="
+
+          cat changed_files.txt
+
+          # Add in the check-changes job
 
       - name: Debug changes
         run: |
