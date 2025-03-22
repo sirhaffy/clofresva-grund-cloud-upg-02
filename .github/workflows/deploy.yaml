@@ -182,6 +182,8 @@ jobs:
           # Check if the token is available.
           echo "Debug: Runner token"
           echo "PAT token available: ${{ secrets.PAT_TOKEN != '' }}"
+          echo "Runner token available: $([[ -n "$TOKEN" ]] && echo
+          "Yes" || echo "No")"
           echo "REPO_NAME: ${{ env.REPO_NAME }}"
 
       # Deploy the infrastructure using Bicep
@@ -234,8 +236,16 @@ jobs:
           MONGODB_CONNECTION_STRING=$(az deployment group show \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --name main \
-            --query "properties.outputs.dotNetMongoConnectionString.value" \
+            --query "properties.outputs.mongoDbConnectionString.value" \
             --output tsv)
+
+          # debug: Print the MongoDB connection string
+          echo "Available outputs:"
+            az deployment group show \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --name main \
+              --query "properties.outputs" \
+              --output json
 
           # Check if the connection string is available
           echo "Connection string available: $([[ -n "$MONGODB_CONNECTION_STRING" ]] && echo "Yes" || echo "No")"
