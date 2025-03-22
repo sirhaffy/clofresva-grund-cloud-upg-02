@@ -8,11 +8,16 @@ on:
       skip_ansible:
         description: 'Skip Ansible configuration'
         required: false
-        default: 'false'
+        default: "false"
       full_deployment:
         description: 'Run full infrastructure deployment'
         required: false
-        default: 'false'
+        default: "false"
+      force_all_steps:
+        description: 'Force all deployment steps to run'
+        required: false
+        default: false
+        type: boolean
 
 # Environment variables
 env:
@@ -40,7 +45,79 @@ jobs:
       - name: Check changed files
         id: check_files
         run: |
-          # Implementation remains the same as your original workflow
+          # Check if this is a manual trigger (workflow_dispatch)
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "Manual workflow run with full_deployment: ${{ github.event.inputs.full_deployment }}"
+
+            # Always run everything on manual trigger
+            echo "run_bicep=true" >> $GITHUB_OUTPUT
+            echo "run_ansible=true" >> $GITHUB_OUTPUT
+            echo "run_webapp=true" >> $GITHUB_OUTPUT
+            echo "changes_detected=true" >> $GITHUB_OUTPUT
+            echo "change_summary=Manual trigger: Running all deployment steps" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # För push-händelser, kontrollera vilka filer som har ändrats
+          echo "Checking changed files..."
+          git diff --name-only HEAD^ HEAD > changed_files.txt
+
+          # Lista alla ändrade filer för felsökning
+          echo "All changed files:"
+          cat changed_files.txt
+
+          # Initialisera ändringsflaggor
+          bicep_changes=false
+          ansible_changes=false
+          webapp_changes=false
+
+          # Mer omfattande mönster för infrastrukturändringar
+          if grep -E "infrastructure/|bicep/|\.bicep$|cosmosdb|mongodb|cosmos" changed_files.txt; then
+            bicep_changes=true
+            echo "Infrastructure changes detected!"
+          fi
+
+          # Bredare mönster för Ansible-ändringar (inkludera alla ansible och yml/yaml filer)
+          if grep -E "ansible/|playbooks/|roles/|templates/|\.ya?ml$|mongodb|cosmos|appsettings|connection|Program\.cs|\.github/actions/" changed_files.txt; then
+            ansible_changes=true
+            echo "Ansible changes detected!"
+          fi
+
+          # Bredare mönster för webapp-ändringar
+          if grep -E "WebbApp/|\.cs$|\.csproj$|\.cshtml$|wwwroot/|Views/|Controllers/|Services/|Models/|Program\.cs|Repositories/" changed_files.txt; then
+            webapp_changes=true
+            echo "Web app changes detected!"
+          fi
+
+          # Konfigurera ändringar i GitHub Actions också som ansible-ändringar
+          if grep -E "\.github/actions/" changed_files.txt; then
+            ansible_changes=true
+            echo "GitHub Actions changes detected, will run Ansible!"
+          fi
+
+          # Sätt outputs baserat på ändringar
+          echo "run_bicep=$bicep_changes" >> $GITHUB_OUTPUT
+          echo "run_ansible=$ansible_changes" >> $GITHUB_OUTPUT
+          echo "run_webapp=$webapp_changes" >> $GITHUB_OUTPUT
+
+          # Skapa en ändringssummering
+          summary="Changes detected:\n"
+          summary+="  Infrastructure: $bicep_changes\n"
+          summary+="  Configuration: $ansible_changes\n"
+          summary+="  Web Application: $webapp_changes\n"
+          echo "change_summary=$summary" >> $GITHUB_OUTPUT
+
+          # Avgör om några ändringar upptäcktes
+          if [ "$bicep_changes" = "true" ] || [ "$ansible_changes" = "true" ] || [ "$webapp_changes" = "true" ]; then
+            echo "changes_detected=true" >> $GITHUB_OUTPUT
+          else
+            echo "changes_detected=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Skriv ut ändringar till loggen
+          echo "==================== CHANGE DETECTION SUMMARY ===================="
+          echo -e "$summary"
+          echo "================================================================="
 
   deploy-infrastructure:
     name: Deploy Azure Infrastructure
