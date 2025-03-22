@@ -204,7 +204,8 @@ jobs:
           echo "  Models directory:"
           grep -i "Models" changed_files.txt | while read -r file; do
             echo "  - $file"
-          done || echo "  No matching Models directory files"
+          done || echo "  No matching Models directory files."
+
 
 
 
