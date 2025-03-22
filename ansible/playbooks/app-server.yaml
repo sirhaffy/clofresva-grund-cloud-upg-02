@@ -80,12 +80,7 @@
         owner: www-data
         group: www-data
         mode: '0644'
-      vars:
-        storage_account: "{{ storage_account | default('clofresvagcupg02storage') }}"
-        blob_endpoint: "{{ blob_endpoint | default('https://clofresvagcupg02storage.blob.core.windows.net/') }}"
-        container_name: "{{ container_name | default('appdata') }}"
-        subscriber_repository_type: "inmemory"
-        mongodb_connection_string: "{{ mongodb_connection_string | default('') }}"
+      ignore_errors: yes
       register: app_settings_result
       changed_when: true
       notify: restart webapp service
@@ -252,7 +247,7 @@
         state: restarted
         daemon_reload: yes
         enabled: yes
-      become: true
+      become: true # Run as root
 
     # Wait for service to start.
     - name: wait for service to start
