@@ -68,9 +68,7 @@
 
     - name: Debug MongoDB connection string (without revealing sensitive data)
       debug:
-      msg:
-        - "mongodb_connection_string_base64 längd: {{ mongodb_connection_string_base64 | default('') | length }}"
-        - "Använder repository typ: {{ subscriber_repository_type | default('inte satt') }}"
+        msg: "MongoDB connection string tillgänglig: {{ mongodb_connection_string_base64 is defined }}"
 
     # Decode MongoDB connection string from base64
     - name: Decode MongoDB connection string from base64

@@ -32,12 +32,22 @@ runs:
           echo 'Deploying application...'
           sudo systemctl stop webapp.service || echo 'Service not running yet'
 
+          # Backup existing appsettings.json if it exists
+          if [ -f /var/www/app/appsettings.json ]; then
+            sudo cp /var/www/app/appsettings.json /tmp/appsettings.json.bak
+          fi
+
           echo 'Removing old files...'
           sudo rm -rf /var/www/app/*
           sudo mkdir -p /var/www/app
 
           echo 'Copy files to webapp directory...'
           sudo cp -r /tmp/webapp/* /var/www/app/
+
+          # Restore appsettings.json if backup exists
+          if [ -f /tmp/appsettings.json.bak ]; then
+            sudo cp /tmp/appsettings.json.bak /var/www/app/appsettings.json
+          fi
 
           sudo chown -R www-data:www-data /var/www/app
 
