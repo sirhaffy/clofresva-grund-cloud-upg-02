@@ -57,6 +57,42 @@ if (repoType == "mongo" || repoType == "cosmos")
             logger.LogInformation("Found MongoDB connection string in ConnectionStrings section");
     }
 
+    // NEW: Ytterligare källor för anslutningssträngen
+    if (string.IsNullOrEmpty(connectionString))
+    {
+        // Prova direkta miljövariabler
+        connectionString = Environment.GetEnvironmentVariable("MONGODB_CONNECTION_STRING");
+        if (!string.IsNullOrEmpty(connectionString))
+            logger.LogInformation("Found MongoDB connection string in MONGODB_CONNECTION_STRING environment variable");
+
+        // Prova base64-kodad anslutningssträng
+        string? base64Conn = Environment.GetEnvironmentVariable("MONGODB_CONNECTION_STRING_B64");
+        if (!string.IsNullOrEmpty(base64Conn))
+        {
+            try
+            {
+                var bytes = Convert.FromBase64String(base64Conn);
+                connectionString = System.Text.Encoding.UTF8.GetString(bytes);
+                logger.LogInformation("Successfully decoded MongoDB connection string from base64");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to decode base64 MongoDB connection string");
+            }
+        }
+
+        // DEBUG: Visa tillgängliga konfigurationsnycklar
+        logger.LogWarning("Available configuration keys:");
+        foreach (var key in builder.Configuration.AsEnumerable()
+                    .Where(k => !string.IsNullOrEmpty(k.Key)))
+        {
+            var value = key.Key.Contains("ConnectionString", StringComparison.OrdinalIgnoreCase) ||
+                       key.Key.Contains("Password", StringComparison.OrdinalIgnoreCase) ?
+                       "[MASKED]" : key.Value;
+            logger.LogWarning("Config key: {Key} = {Value}", key.Key, value);
+        }
+    }
+
     if (string.IsNullOrEmpty(connectionString) || connectionString.Contains("YOUR_PASSWORD_HERE"))
     {
         logger.LogWarning("MongoDB connection string not found or contains placeholder. Using InMemory repository instead.");
@@ -123,6 +159,21 @@ if (useAzureStorage)
     string storageAccount = builder.Configuration["Storage:AccountName"] ?? "";
     string blobEndpoint = builder.Configuration["Storage:BlobEndpoint"] ?? "";
 
+    // NEW: Fallback till miljövariabler
+    if (string.IsNullOrEmpty(storageAccount))
+    {
+        storageAccount = Environment.GetEnvironmentVariable("STORAGE_ACCOUNT") ?? "";
+        if (!string.IsNullOrEmpty(storageAccount))
+            logger.LogInformation("Found storage account in STORAGE_ACCOUNT environment variable");
+    }
+
+    if (string.IsNullOrEmpty(blobEndpoint))
+    {
+        blobEndpoint = Environment.GetEnvironmentVariable("BLOB_ENDPOINT") ?? "";
+        if (!string.IsNullOrEmpty(blobEndpoint))
+            logger.LogInformation("Found blob endpoint in BLOB_ENDPOINT environment variable");
+    }
+
     logger.LogInformation("Storage Account: {StorageAccount}", storageAccount);
     logger.LogInformation("Blob Endpoint: {BlobEndpoint}", blobEndpoint);
 
@@ -151,11 +202,13 @@ builder.Services.AddControllersWithViews();
 
 var app = builder.Build();
 
-// Create deploy timestamp file for tracking deployments
+// NEW: Skapa deploy timestamp fil i webroot-katalogen istället för arbetskatalogen
 try
 {
-    File.WriteAllText("deploy-timestamp.txt", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"));
-    logger.LogInformation("Created deployment timestamp file");
+    var webRootPath = app.Environment.WebRootPath;
+    var timestampPath = Path.Combine(webRootPath, "deploy-timestamp.txt");
+    File.WriteAllText(timestampPath, DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"));
+    logger.LogInformation("Created deployment timestamp file at {Path}", timestampPath);
 }
 catch (Exception ex)
 {

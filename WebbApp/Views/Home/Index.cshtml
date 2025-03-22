@@ -1,7 +1,7 @@
 ﻿@{
     ViewData["Title"] = "Home Page";
-    var deployTime = System.IO.File.Exists("deploy-timestamp.txt")
-        ? System.IO.File.ReadAllText("deploy-timestamp.txt")
+    var deployTime = System.IO.File.Exists("wwwroot/deploy-timestamp.txt")
+        ? System.IO.File.ReadAllText("wwwroot/deploy-timestamp.txt")
         : DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
 }
 

@@ -153,16 +153,17 @@ jobs:
       - name: Generate runner token
         id: generate_token
         run: |
-          echo "Getting fresh runner token..."
           TOKEN=$(curl -X POST -H "Authorization: token ${{ secrets.PAT_TOKEN }}" \
             -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/${{ env.REPO_NAME }}/actions/runners/registration-token \
             | jq -r .token)
 
-          # Securely set the token as an environment variable (won't be logged)
           echo "RUNNER_TOKEN=$TOKEN" >> $GITHUB_ENV
           echo "::add-mask::$TOKEN"
-          echo "Fresh token generated! (masked for security)"
+
+          echo "Debug: Runner token"
+          echo "PAT token available: ${{ secrets.PAT_TOKEN != '' }}"
+          echo "REPO_NAME: ${{ env.REPO_NAME }}"
 
       # Deploy the infrastructure using Bicep
       - name: Deploy Infrastructure
@@ -622,12 +623,6 @@ jobs:
             # Skapa wwwroot om det inte finns
             sudo mkdir -p /var/www/app/wwwroot
             sudo chown -R www-data:www-data /var/www/app/wwwroot
-
-            # Skapa timestamp-filen om den inte finns
-            if [ ! -f /var/www/app/wwwroot/deploy-timestamp.txt ]; then
-              echo \"\$(date -u +'%Y-%m-%d %H:%M:%S')\" | sudo tee /var/www/app/wwwroot/deploy-timestamp.txt
-              sudo chown www-data:www-data /var/www/app/wwwroot/deploy-timestamp.txt
-            fi
 
             echo 'Listing files in webapp directory...'
             ls -la /var/www/app/
