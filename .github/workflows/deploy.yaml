@@ -663,7 +663,7 @@ jobs:
     name: Deploy Application as Artifact
 
     needs: [check-changes, get-infrastructure-info]
-    if: ${{ needs.check-changes.outputs.run_webapp == 'true' }}
+    if: ${{ needs.check-changes.outputs.run_webapp == 'true' || needs.configure-servers.result == 'success' }}
 
     runs-on: ubuntu-latest
     env:
