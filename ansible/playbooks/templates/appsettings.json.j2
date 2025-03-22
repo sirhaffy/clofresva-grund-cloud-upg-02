@@ -7,12 +7,12 @@
   },
   "AllowedHosts": "*",
   "Storage": {
-    "AccountName": "{% if storage_account is defined and storage_account %}{{ storage_account }}{% else %}{% endif %}",
-    "BlobEndpoint": "{% if blob_endpoint is defined and blob_endpoint %}{{ blob_endpoint }}{% else %}{% endif %}",
-    "ContainerName": "{% if container_name is defined and container_name %}{{ container_name }}{% else %}appdata{% endif %}"
+    "AccountName": "{{ storage_account | default('') }}",
+    "BlobEndpoint": "{{ blob_endpoint | default('') }}",
+    "ContainerName": "{{ container_name | default('appdata') }}"
   },
   "MongoDB": {
-    "ConnectionString": "{% if mongodb_connection_string is defined and mongodb_connection_string %}{{ mongodb_connection_string }}{% else %}{% endif %}",
+    "ConnectionString": "{{ mongodb_connection_string | default('') }}",
     "DatabaseName": "cloudsoft",
     "CollectionName": "subscribers"
   },

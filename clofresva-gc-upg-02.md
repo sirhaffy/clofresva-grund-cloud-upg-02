@@ -117,6 +117,10 @@ Implementera en failover-strategi i applikationen som växlar mellan cosmos och 
 
 GLÖM INTE SÄKERHETEN..
 
+Deploy.yaml och app-server.yaml var dom två filerna som jag arbetade som mest i, i slutet.
+
+
+
 
 
 

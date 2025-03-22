@@ -614,6 +614,7 @@ jobs:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP }}
       APP_IP: ${{ needs.deploy-infrastructure.outputs.APP_IP }}
       MONGODB_CONNECTION_STRING: ${{ needs.deploy-infrastructure.outputs.MONGODB_CONNECTION_STRING }}
+      MONGODB_CONNECTION_STRING_B64: ${{ needs.deploy-infrastructure.outputs.MONGODB_CONNECTION_STRING_B64 }}
       STORAGE_ACCOUNT: ${{ needs.deploy-infrastructure.outputs.STORAGE_ACCOUNT }}
       BLOB_ENDPOINT: ${{ needs.deploy-infrastructure.outputs.BLOB_ENDPOINT }}
 
@@ -650,7 +651,9 @@ jobs:
 
           echo "Testing SSH connectivity:"
           echo "Bastion IP: $BASTION_IP"
-          ssh -v -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP "echo 'Connected to Bastion'" || echo "Failed to connect to Bastion"
+          ssh -v -i ~/.ssh/clofresva_gc_upg02_azure_key \
+            azureuser@$BASTION_IP \
+            "echo 'Connected to Bastion'" || echo "Failed to connect to Bastion"
 
       - name: Download App Artifact
         uses: actions/download-artifact@v4
@@ -658,11 +661,12 @@ jobs:
           name: webapp
           path: ./webapp-files
 
-        # Remove appsettings.json from the artifact to avoid overriding server-side configuration
-      - name: Remove appsettings.json from artifact to preserve server-side configuration
+      # I deploy-to-server jobbet
+      - name: Remove appsettings.json before deployment
         run: |
-          echo "Removing appsettings.json from webapp files to avoid overriding server configuration..."
-          rm -f ./webapp-files/appsettings.json ./webapp-files/appsettings.*.json
+          echo "Removing appsettings.json from artifact to prevent \
+          overriding server configuration..."
+          rm -f ./webapp-files/appsettings.json
 
       - name: Create target directory and deploy app
         run: |
@@ -720,4 +724,16 @@ jobs:
             sudo journalctl -u webapp.service --no-pager -n 50 || true
 
             echo 'Application deployed!'
+          "
+
+      - name: Verify server configuration
+        run: |
+          ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP" -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$APP_IP "
+            echo 'Verifying server configuration...'
+            if grep -q '{accountname}' /var/www/app/appsettings.json; then
+              echo 'WARNING: Default placeholder values detected in appsettings.json!'
+              exit 1
+            else
+              echo 'Server configuration appears valid.'
+            fi
           "
