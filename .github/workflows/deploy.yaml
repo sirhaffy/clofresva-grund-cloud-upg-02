@@ -772,7 +772,7 @@ jobs:
   deploy-to-server:
     name: Deploy Artifact to App-Server
 
-    needs: [deploy-app, get-infrastructure-info, configure-servers]
+    needs: [deploy-app, get-infrastructure-info]
     if: ${{ needs.deploy-app.result == 'success' && needs.get-infrastructure-info.result == 'success' }}
 
     runs-on: ubuntu-latest
