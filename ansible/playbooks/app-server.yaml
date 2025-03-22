@@ -64,6 +64,7 @@
         mongodb_connection_string: "{{ mongodb_connection_string_base64 | b64decode }}"
       when: mongodb_connection_string_base64 is defined and mongodb_connection_string_base64 != '' and mongodb_connection_string_base64 | length > 10
       no_log: true
+      ignore_errors: yes
 
     - name: Debug MongoDB connection string (without revealing sensitive data)
       debug:

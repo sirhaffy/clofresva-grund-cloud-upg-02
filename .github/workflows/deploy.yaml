@@ -131,11 +131,12 @@ jobs:
     if: ${{ needs.check-changes.outputs.run_bicep == 'true' }}
     runs-on: ubuntu-latest
     outputs:
-      BASTION_IP: ${{ steps.outputs.outputs.BASTION_IP }}
-      APP_IP: ${{ steps.outputs.outputs.APP_IP }}
-      MONGODB_CONNECTION_STRING: ${{ steps.outputs.outputs.MONGODB_CONNECTION_STRING }}
-      STORAGE_ACCOUNT: ${{ steps.outputs.outputs.STORAGE_ACCOUNT }}
-      BLOB_ENDPOINT: ${{ steps.outputs.outputs.BLOB_ENDPOINT }}
+      BASTION_IP: ${{ steps.get_outputs.outputs.BASTION_IP }}
+      APP_IP: ${{ steps.get_outputs.outputs.APP_IP }}
+      MONGODB_CONNECTION_STRING: ${{ steps.get_outputs.outputs.MONGODB_CONNECTION_STRING }}
+      MONGODB_CONNECTION_STRING_B64: ${{ steps.get_outputs.outputs.MONGODB_CONNECTION_STRING_B64 }}
+      STORAGE_ACCOUNT: ${{ steps.get_outputs.outputs.STORAGE_ACCOUNT }}
+      BLOB_ENDPOINT: ${{ steps.get_outputs.outputs.BLOB_ENDPOINT }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -180,27 +181,36 @@ jobs:
           deploymentName: main
 
       - name: Get Deployment Outputs
+        id: get_outputs
         run: |
-          # Get outputs like storage account, blob endpoint, etc.
+          # Hämta outputs från Azure deployment
+          BASTION_IP=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query "properties.outputs.bastionPublicIp.value" --output tsv)
+          APP_IP=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query "properties.outputs.appPrivateIp.value" --output tsv)
+          STORAGE_ACCOUNT=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query "properties.outputs.storageAccountName.value" --output tsv)
+          BLOB_ENDPOINT=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query "properties.outputs.blobEndpoint.value" --output tsv)
+          MONGODB_CONNECTION_STRING=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query "properties.outputs.dotNetMongoConnectionString.value" --output tsv)
 
-          # Get MongoDB connection string with proper error handling
-          echo "Getting MongoDB connection string..."
-          MONGODB_CONNECTION_STRING=$(az deployment group show \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --name main \
-            --query "properties.outputs.dotNetMongoConnectionString.value" \
-            --output tsv)
+          # Skriv ut värden för felsökning (masker känsliga data)
+          echo "BASTION_IP: $BASTION_IP"
+          echo "APP_IP: $APP_IP"
+          echo "STORAGE_ACCOUNT: $STORAGE_ACCOUNT"
+          echo "BLOB_ENDPOINT: $BLOB_ENDPOINT"
+          echo "MONGODB_CONNECTION_STRING length: ${#MONGODB_CONNECTION_STRING}"
 
-          # Print length for debugging (don't print the actual string)
-          echo "MongoDB connection string length: ${#MONGODB_CONNECTION_STRING}"
+          # Skapa output-variabler
+          echo "BASTION_IP=$BASTION_IP" >> $GITHUB_OUTPUT
+          echo "APP_IP=$APP_IP" >> $GITHUB_OUTPUT
+          echo "STORAGE_ACCOUNT=$STORAGE_ACCOUNT" >> $GITHUB_OUTPUT
+          echo "BLOB_ENDPOINT=$BLOB_ENDPOINT" >> $GITHUB_OUTPUT
+          echo "MONGODB_CONNECTION_STRING=$MONGODB_CONNECTION_STRING" >> $GITHUB_OUTPUT
 
-          # Base64 encode it
-          if [ -n "$MONGODB_CONNECTION_STRING" ] && [ ${#MONGODB_CONNECTION_STRING} -gt 20 ]; then
+          # Koda connection string om den finns tillgänglig
+          if [ -n "$MONGODB_CONNECTION_STRING" ] && [ ${#MONGODB_CONNECTION_STRING} -gt 10 ]; then
             MONGODB_CONNECTION_STRING_B64=$(echo -n "$MONGODB_CONNECTION_STRING" | base64 -w0)
-            echo "MONGODB_CONNECTION_STRING_BASE64=$MONGODB_CONNECTION_STRING_B64" >> $GITHUB_ENV
-            echo "Encoded MongoDB connection string (first 10 chars): ${MONGODB_CONNECTION_STRING_B64:0:10}..."
+            echo "MONGODB_CONNECTION_STRING_B64=$MONGODB_CONNECTION_STRING_B64" >> $GITHUB_OUTPUT
+            echo "Encoded MongoDB connection string (length: ${#MONGODB_CONNECTION_STRING_B64})"
           else
-            echo "Warning: Invalid MongoDB connection string, length: ${#MONGODB_CONNECTION_STRING}"
+            echo "Warning: MongoDB connection string is missing or too short"
           fi
 
       - name: Ensure Ansible config exists
@@ -237,6 +247,17 @@ jobs:
           echo "Testing SSH to app server at $APP_IP via bastion..."
           ssh -i ~/.ssh/clofresva_gc_upg02_azure_key -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP" azureuser@$APP_IP "echo 'App server connection successful!'" || echo "WARNING: App server connection failed!"
 
+      - name: Debug environment variables
+        run: |
+          echo "Environment variables:"
+          echo "BASTION_IP: ${{ env.BASTION_IP }}"
+          echo "APP_IP: ${{ env.APP_IP }}"
+          echo "PROJECT_NAME: ${{ env.PROJECT_NAME }}"
+          echo "STORAGE_ACCOUNT: ${{ env.STORAGE_ACCOUNT }}"
+          echo "BLOB_ENDPOINT: ${{ env.BLOB_ENDPOINT }}"
+          echo "REPO_NAME: ${{ env.REPO_NAME }}"
+          echo "RUNNER_TOKEN available: ${{ env.RUNNER_TOKEN != '' }}"
+
   configure-servers:
     name: Configure Servers with Ansible
     needs: [check-changes, deploy-infrastructure]
@@ -255,6 +276,7 @@ jobs:
       MONGODB_CONNECTION_STRING_B64: ${{ needs.deploy-infrastructure.outputs.MONGODB_CONNECTION_STRING_B64 }}
       STORAGE_ACCOUNT: ${{ needs.deploy-infrastructure.outputs.STORAGE_ACCOUNT }}
       BLOB_ENDPOINT: ${{ needs.deploy-infrastructure.outputs.BLOB_ENDPOINT }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -284,12 +306,12 @@ jobs:
       - name: Setup Ansible
         uses: ./.github/actions/setup-ansible
         with:
-          bastion_ip: ${{ env.BASTION_IP || '137.116.232.168' }}
-          app_ip: ${{ env.APP_IP || '10.0.2.4' }}
+          bastion_ip: ${{ needs.deploy-infrastructure.outputs.BASTION_IP || '137.116.232.168' }}
+          app_ip: ${{ needs.deploy-infrastructure.outputs.APP_IP || '10.0.2.4' }}
           project_name: ${{ env.PROJECT_NAME }}
-          storage_account: ${{ env.STORAGE_ACCOUNT }}
-          blob_endpoint: ${{ env.BLOB_ENDPOINT }}
-          mongodb_connection_string_b64: ${{ env.MONGODB_CONNECTION_STRING_B64 }}
+          storage_account: ${{ needs.deploy-infrastructure.outputs.STORAGE_ACCOUNT || '' }}
+          blob_endpoint: ${{ needs.deploy-infrastructure.outputs.BLOB_ENDPOINT || '' }}
+          mongodb_connection_string_b64: ${{ needs.deploy-infrastructure.outputs.MONGODB_CONNECTION_STRING_B64 || '' }}
           github_repo: ${{ env.REPO_NAME }}
           github_runner_token: ${{ env.RUNNER_TOKEN }}
 
@@ -301,6 +323,7 @@ jobs:
 
           # Kör Ansible en gång med error-hantering
           echo "Running Ansible with error handling..."
+
           if ! ansible-playbook -i ./ansible/inventories/azure_rm.yaml ./ansible/playbooks/app-server.yaml; then
             echo "::warning::Ansible playbook failed but workflow will continue"
             echo "ansible_failed=true" >> $GITHUB_ENV
