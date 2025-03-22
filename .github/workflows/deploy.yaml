@@ -992,38 +992,40 @@ jobs:
             echo 'Application deployed!'
           "
 
-          - name: Verify server configuration
-          run: |
-            # Check if environment variables are available
-            if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
-              echo "WARNING: IP addresses not set. Using hardcoded values."
-              APP_IP="10.0.2.4"
-              BASTION_IP="137.116.232.168"
-            else
-              APP_IP="${{ env.APP_IP }}"
-              BASTION_IP="${{ env.BASTION_IP }}"
-            fi
+      - name: Verify server configuration
+        run: |
+          # Debug-utskrift för att bekräfta variablerna
+          echo "Debug miljövariabler:"
+          echo "BASTION_IP: ${{ env.BASTION_IP }}"
+          echo "APP_IP: ${{ env.APP_IP }}"
 
-            echo "Using App IP: $APP_IP"
-            echo "Using Bastion IP: $BASTION_IP"
+          # Använd BARA miljövariabler, inga hårdkodade IP-adresser
+          if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
+            echo "ERROR: IP-adresser saknas. Kan inte fortsätta utan korrekt infrastrukturdata."
+            echo "BASTION_IP: '${{ env.BASTION_IP }}'"
+            echo "APP_IP: '${{ env.APP_IP }}'"
+            exit 1
+          fi
 
-            # Först, kopiera en korrekt appsettings.json om den innehåller placeholders
-            ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP" -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$APP_IP "
-              echo 'Checking server configuration...'
-              if grep -q '{accountname}' /var/www/app/appsettings.json; then
-                echo 'WARNING: Default placeholder values detected in appsettings.json, will restore from template'
-                sudo ansible-playbook -i /etc/ansible/inventories/local.yaml /etc/ansible/playbooks/restore-config.yaml || true
-              fi
+          echo "Använder App IP: ${{ env.APP_IP }}"
+          echo "Använder Bastion IP: ${{ env.BASTION_IP }}"
 
-              echo 'Verifying server configuration...'
-              if grep -q '{accountname}' /var/www/app/appsettings.json; then
-                echo 'ERROR: Failed to replace placeholders in appsettings.json!'
-                cat /var/www/app/appsettings.json
-                # Avsluta utan felkod för att låta arbetsflödet fortsätta
-                exit 0
+          # SSH och verifiera konfiguration
+          ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@${{ env.BASTION_IP }}" -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@${{ env.APP_IP }} "
+            echo 'Kontrollerar serverkonfiguration...'
+            if grep -q '{accountname}' /var/www/app/appsettings.json 2>/dev/null; then
+              echo 'VARNING: Standardplaceholders upptäckta i appsettings.json, återställer från mall'
+              sudo ansible-playbook -i /etc/ansible/inventories/local.yaml /etc/ansible/playbooks/restore-config.yaml || true
+
+              # Verifiera igen efter återställning
+              if grep -q '{accountname}' /var/www/app/appsettings.json 2>/dev/null; then
+                echo 'FEL: Kunde inte ersätta placeholders i appsettings.json!'
+                cat /var/www/app/appsettings.json 2>/dev/null || echo 'Kunde inte visa appsettings.json'
               else
-                echo 'Server configuration appears valid.'
-                exit 0
+                echo 'Framgångsrikt återställt konfiguration från mall'
               fi
-            "
-          continue-on-error: true
+            else
+              echo 'Serverkonfiguration ser korrekt ut.'
+            fi
+          "
+        continue-on-error: true
