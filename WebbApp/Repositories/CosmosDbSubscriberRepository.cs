@@ -170,24 +170,60 @@ namespace MVC_TestApp.Repositories
             throw new NotImplementedException();
         }
 
-        Task<bool> ISubscriberRepository.AddSubscriberAsync(Subscriber subscriber)
+        async Task<bool> ISubscriberRepository.AddSubscriberAsync(Subscriber subscriber)
         {
-            throw new NotImplementedException();
+            try
+            {
+                await this.AddSubscriberAsync(subscriber);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error adding subscriber {Email}", subscriber.Email);
+                return false;
+            }
         }
 
-        Task<bool> ISubscriberRepository.UpdateSubscriberAsync(Subscriber subscriber)
+        async Task<bool> ISubscriberRepository.UpdateSubscriberAsync(Subscriber subscriber)
         {
-            throw new NotImplementedException();
+            try
+            {
+                await this.UpdateSubscriberAsync(subscriber);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating subscriber {Id}, {Email}", subscriber.Id, subscriber.Email);
+                return false;
+            }
         }
 
-        Task<bool> ISubscriberRepository.DeleteSubscriberAsync(string email)
+        async Task<bool> ISubscriberRepository.DeleteSubscriberAsync(string id)
         {
-            throw new NotImplementedException();
+            try
+            {
+                await this.DeleteSubscriberAsync(id);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting subscriber {Id}", id);
+                return false;
+            }
         }
 
-        public Task<bool> ExistsSubscriberAsync(string email)
+        async Task<bool> ISubscriberRepository.ExistsSubscriberAsync(string email)
         {
-            throw new NotImplementedException();
+            try
+            {
+                var subscriber = await this.GetSubscriberByEmailAsync(email);
+                return subscriber != null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking if subscriber exists {Email}", email);
+                return false;
+            }
         }
     }
 }

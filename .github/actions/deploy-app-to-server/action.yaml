@@ -1,0 +1,81 @@
+name: 'Deploy App to Server'
+description: 'Deploys a .NET application to an Azure VM'
+
+inputs:
+  bastion_ip:
+    description: 'Bastion server IP address'
+    required: true
+  app_ip:
+    description: 'App server IP address'
+    required: true
+  app_path:
+    description: 'Path to the application files'
+    required: true
+    default: './webapp-files'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Create target directory and deploy app
+      shell: bash
+      run: |
+        echo "Deploying application to server..."
+
+        echo "Creating target directory on remote server..."
+        ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@${{ inputs.bastion_ip }}" -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@${{ inputs.app_ip }} "sudo mkdir -p /tmp/webapp && sudo chown azureuser:azureuser /tmp/webapp"
+
+        echo "Copying files to remote server..."
+        scp -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@${{ inputs.bastion_ip }}" -i ~/.ssh/clofresva_gc_upg02_azure_key -r ${{ inputs.app_path }}/* azureuser@${{ inputs.app_ip }}:/tmp/webapp/
+
+        echo "Deploying files on app server..."
+        ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@${{ inputs.bastion_ip }}" -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@${{ inputs.app_ip }} "
+          echo 'Deploying application...'
+          sudo systemctl stop webapp.service || echo 'Service not running yet'
+
+          echo 'Removing old files...'
+          sudo rm -rf /var/www/app/*
+          sudo mkdir -p /var/www/app
+
+          echo 'Copy files to webapp directory...'
+          sudo cp -r /tmp/webapp/* /var/www/app/
+
+          sudo chown -R www-data:www-data /var/www/app
+
+          # Create wwwroot if it doesn't exist
+          sudo mkdir -p /var/www/app/wwwroot
+          sudo chown -R www-data:www-data /var/www/app/wwwroot
+
+          # Create timestamp file if it doesn't exist
+          if [ ! -f /var/www/app/wwwroot/deploy-timestamp.txt ]; then
+            echo \"\$(date -u +'%Y-%m-%d %H:%M:%S')\" | sudo tee /var/www/app/wwwroot/deploy-timestamp.txt
+            sudo chown www-data:www-data /var/www/app/wwwroot/deploy-timestamp.txt
+          fi
+
+          echo 'Restarting service...'
+          sudo systemctl daemon-reload
+          sudo systemctl restart webapp.service
+
+          echo 'Service status:'
+          sudo systemctl status webapp.service || true
+
+          echo 'Application deployed!'
+        "
+
+    - name: Verify deployment
+      shell: bash
+      run: |
+        echo "Verifying deployment..."
+        # Wait for the service to stabilize
+        sleep 10
+
+        # Check service status
+        ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@${{ inputs.bastion_ip }}" -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@${{ inputs.app_ip }} "
+          echo 'Service status:'
+          sudo systemctl status webapp.service || true
+
+          echo 'Running processes:'
+          ps aux | grep dotnet
+
+          echo 'Service logs:'
+          sudo journalctl -u webapp.service --no-pager -n 20 || true
+        "

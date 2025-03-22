@@ -68,19 +68,18 @@
 
     - name: Debug MongoDB connection string (without revealing sensitive data)
       debug:
-        msg: "MongoDB connection string is {{ 'VALID (length: ' + (mongodb_connection_string | length | string) + ')' if mongodb_connection_string is defined and mongodb_connection_string | length > 20 else 'INVALID OR EMPTY' }}"
+      msg:
+        - "mongodb_connection_string_base64 längd: {{ mongodb_connection_string_base64 | default('') | length }}"
+        - "Använder repository typ: {{ subscriber_repository_type | default('inte satt') }}"
 
-    - name: Debug MongoDB connection string length
-      debug:
-        msg: "MongoDB connection string length: {{ mongodb_connection_string | length if mongodb_connection_string is defined else 0 }}"
-
-    # Fallback if not provided
-    - name: Set empty MongoDB connection string if not provided
+    # Decode MongoDB connection string from base64
+    - name: Decode MongoDB connection string from base64
       set_fact:
-        mongodb_connection_string: ""
-      when: mongodb_connection_string is not defined
+        mongodb_connection_string: "{{ mongodb_connection_string_base64 | b64decode }}"
+      when: mongodb_connection_string_base64 is defined and mongodb_connection_string_base64 | length > 0
+      no_log: true
 
-    # Create app settings with MongoDB connection
+    # Create application settings file
     - name: Create application settings file
       template:
         src: templates/appsettings.json.j2

@@ -33,13 +33,29 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Install Ansible
+      shell: bash
+      run: |
+        pip install ansible
+        pip install azure-cli
+        pip install pywinrm
+        pip install jmespath
+
     - name: Create Ansible config
       shell: bash
       run: |
         mkdir -p ./ansible
-        echo "[defaults]" > ./ansible/ansible.cfg
-        echo "host_key_checking = False" >> ./ansible/ansible.cfg
-        echo "roles_path = ./ansible/roles" >> ./ansible/ansible.cfg
+        cat > ./ansible/ansible.cfg << EOF
+        [defaults]
+        host_key_checking = False
+        roles_path = ./ansible/roles
+        inventory = ./ansible/inventories
+        remote_tmp = /tmp/.ansible-\${USER}/tmp
+
+        [ssh_connection]
+        pipelining = True
+        control_path = /tmp/ansible-ssh-%%h-%%p-%%r
+        EOF
 
         # Set the environment variable
         echo "ANSIBLE_CONFIG=./ansible/ansible.cfg" >> $GITHUB_ENV
@@ -66,3 +82,15 @@ runs:
             github_runner_token: ${{ inputs.github_runner_token }}
             mongodb_connection_string_base64: ${{ inputs.mongodb_connection_string_b64 }}
         EOF
+
+        echo "Created Ansible inventory with the following connections:"
+        echo "App server: ${{ inputs.app_ip }} via bastion: ${{ inputs.bastion_ip }}"
+
+    - name: Verify Ansible configuration
+      shell: bash
+      run: |
+        echo "Ansible version:"
+        ansible --version
+
+        echo "Ansible inventory:"
+        ansible-inventory --list -y -i ./ansible/inventories/azure_rm.yaml

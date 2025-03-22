@@ -9,14 +9,14 @@
   "Storage": {
     "AccountName": "{{ storage_account | default('') }}",
     "BlobEndpoint": "{{ blob_endpoint | default('') }}",
-    "ContainerName": "{{ container_name | default('') }}"
+    "ContainerName": "{{ container_name | default('appdata') }}"
   },
   "MongoDB": {
     "ConnectionString": "{{ mongodb_connection_string | default('') }}",
     "DatabaseName": "cloudsoft",
     "CollectionName": "subscribers"
   },
-  "SUBSCRIBER_REPOSITORY": "{% if mongodb_connection_string is defined and mongodb_connection_string != '' and mongodb_connection_string | length > 20 %}cosmos{% else %}inmemory{% endif %}",
+  "SUBSCRIBER_REPOSITORY": "{{ subscriber_repository_type | default('cosmos') }}",
   "FEATUREFLAGS": {
     "USEAZURESTORAGE": {% if storage_account is defined and storage_account != '' %}true{% else %}false{% endif %}
   }

@@ -39,3 +39,16 @@ runs:
           ConnectTimeout 10
         EOF
         chmod 600 ~/.ssh/config
+
+    - name: Test SSH configuration
+      shell: bash
+      run: |
+        if [[ -n "${{ inputs.bastion_ip }}" ]]; then
+          echo "Testing SSH connection to bastion host..."
+          ssh -i ~/.ssh/clofresva_gc_upg02_azure_key -o ConnectTimeout=10 azureuser@${{ inputs.bastion_ip }} "echo 'Bastion connection successful!'" || echo "WARNING: Bastion connection failed!"
+
+          if [[ -n "${{ inputs.app_ip }}" ]]; then
+            echo "Testing SSH connection to app server via bastion..."
+            ssh -i ~/.ssh/clofresva_gc_upg02_azure_key -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@${{ inputs.bastion_ip }}" azureuser@${{ inputs.app_ip }} "echo 'App server connection successful!'" || echo "WARNING: App server connection failed!"
+          fi
+        fi

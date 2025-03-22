@@ -42,21 +42,6 @@ resource appNic 'Microsoft.Network/networkInterfaces@2021-05-01' = {
   }
 }
 
-// Add data disk for GitHub Actions workspace
-// resource actionsDisk 'Microsoft.Compute/disks@2021-04-01' = {
-//   name: '${appServerName}-data-disk'
-//   location: location
-//   sku: {
-//     name: 'Standard_LRS'
-//   }
-//   properties: {
-//     creationData: {
-//       createOption: 'Empty'
-//     }
-//     diskSizeGB: 50
-//   }
-// }
-
 // Create the app server VM
 resource appServerVM 'Microsoft.Compute/virtualMachines@2021-07-01' = {
   name: appServerName
@@ -78,15 +63,6 @@ resource appServerVM 'Microsoft.Compute/virtualMachines@2021-07-01' = {
           storageAccountType: 'Standard_LRS'
         }
       }
-      // dataDisks: [
-      //   {
-      //     createOption: 'Attach'
-      //     lun: 0
-      //     managedDisk: {
-      //       id: actionsDisk.id
-      //     }
-      //   }
-      // ]
     }
     osProfile: {
       computerName: appServerName
@@ -117,4 +93,3 @@ resource appServerVM 'Microsoft.Compute/virtualMachines@2021-07-01' = {
 // Outputs
 output vmId string = appServerVM.id
 output privateIp string = appNic.properties.ipConfigurations[0].properties.privateIPAddress
-// output publicIpAddress string = publicIp.properties.ipAddress
