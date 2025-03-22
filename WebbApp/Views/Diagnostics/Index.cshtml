@@ -19,8 +19,26 @@
 <div class="card mb-4">
     <div class="card-header">Blob Storage Configuration</div>
     <div class="card-body">
+        <p>Image Service Type: <strong>@Model.ImageServiceType</strong></p>
+        <p>Using Azure Storage: <strong>@Model.FeatureFlagUseAzureStorage</strong></p>
+        <p>Blob Storage Configured: <strong>@Model.BlobStorageConfigured</strong></p>
         <p>Storage Account Name: <strong>@Model.StorageAccountName</strong></p>
         <p>Blob Endpoint: <strong>@Model.BlobEndpoint</strong></p>
-        <p>Using Azure Storage: <strong>@Model.FeatureFlagUseAzureStorage</strong></p>
+        <p>Container Name: <strong>@Model.ContainerName</strong></p>
+
+        @if (!string.IsNullOrEmpty(Model.ConstructedBlobUrl))
+        {
+            <div class="mt-3">
+                <h5>Blob URL Test</h5>
+                <p>Constructed URL: <a href="@Model.ConstructedBlobUrl" target="_blank">@Model.ConstructedBlobUrl</a></p>
+                <p>Service URL: <a href="@Model.TestImageUrl" target="_blank">@Model.TestImageUrl</a></p>
+
+                <h5>Image Test</h5>
+                <div class="mt-2">
+                    <img src="@Model.TestImageUrl" alt="Test Image" style="max-width: 300px; border: 1px solid #ddd; padding: 5px;"
+                         onerror="this.onerror=null; this.src=''; this.alt='Image failed to load'; this.style.border='1px solid red';" />
+                </div>
+            </div>
+        }
     </div>
 </div>

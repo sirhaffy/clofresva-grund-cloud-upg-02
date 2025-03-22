@@ -174,8 +174,9 @@ jobs:
             https://api.github.com/repos/${{ env.REPO_NAME }}/actions/runners/registration-token \
             | jq -r .token)
 
-          # Set the token as an environment variable.
+          # Set the token as environment variable and output.
           echo "RUNNER_TOKEN=$TOKEN" >> $GITHUB_ENV
+          echo "RUNNER_TOKEN=$TOKEN" >> $GITHUB_OUTPUT
           echo "::add-mask::$TOKEN"
 
           # Check if the token is available.
@@ -239,6 +240,9 @@ jobs:
           # Check if the connection string is available
           echo "Connection string available: $([[ -n "$MONGODB_CONNECTION_STRING" ]] && echo "Yes" || echo "No")"
 
+          # Debug: Print the MongoDB connection string
+          echo "MongoDB connection string: $MONGODB_CONNECTION_STRING"
+
           echo "Getting storage account name..."
           STORAGE_ACCOUNT=$(az deployment group show \
             --resource-group ${{ env.RESOURCE_GROUP }} \
@@ -266,11 +270,11 @@ jobs:
           echo "Blob endpoint: $BLOB_ENDPOINT"
 
           # Output the values to the console.
-          echo "Bastion IP: $BASTION_IP"
-          echo "App IP: $APP_IP"
-          echo "Storage Account: $STORAGE_ACCOUNT"
-          echo "Blob Endpoint: $BLOB_ENDPOINT"
-          echo "MongoDB connection string length: ${#MONGODB_CONNECTION_STRING}"
+          # echo "Bastion IP: $BASTION_IP"
+          # echo "App IP: $APP_IP"
+          # echo "Storage Account: $STORAGE_ACCOUNT"
+          # echo "Blob Endpoint: $BLOB_ENDPOINT"
+          # echo "MongoDB connection string length: ${#MONGODB_CONNECTION_STRING}"
 
           # Set the environment variables.
           echo "BASTION_IP=$BASTION_IP" >> $GITHUB_ENV
@@ -356,6 +360,7 @@ jobs:
       MONGODB_CONNECTION_STRING_B64: ${{ needs.deploy-infrastructure.outputs.MONGODB_CONNECTION_STRING_B64 }}
       STORAGE_ACCOUNT: ${{ needs.deploy-infrastructure.outputs.STORAGE_ACCOUNT }}
       BLOB_ENDPOINT: ${{ needs.deploy-infrastructure.outputs.BLOB_ENDPOINT }}
+      RUNNER_TOKEN: ${{ needs.deploy-infrastructure.outputs.RUNNER_TOKEN }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
