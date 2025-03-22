@@ -129,7 +129,7 @@ output cosmosDbCollectionName string = mongoCollection.name
 
 // Secret output that contains the connection string for the MongoDB API.
 #disable-next-line outputs-should-not-contain-secrets
-output dotNetMongoConnectionString string = listConnectionStrings(resourceId('Microsoft.DocumentDB/databaseAccounts', cosmosDbAccountName), '2022-05-15').connectionStrings[0].connectionString
+output dotNetMongoConnectionString string = cosmosDbAccountRef.listConnectionStrings().connectionStrings[0].connectionString
 
 // Output the IDs of the Cosmos DB account, database, and collection.
 output cosmosDbAccountId string = cosmosDbAccountRef.id
