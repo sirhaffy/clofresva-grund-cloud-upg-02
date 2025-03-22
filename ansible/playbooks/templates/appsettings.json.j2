@@ -16,7 +16,7 @@
     "DatabaseName": "cloudsoft",
     "CollectionName": "subscribers"
   },
-  "SUBSCRIBER_REPOSITORY": "{% if mongodb_connection_string is defined and mongodb_connection_string != '' and 'YOUR_PASSWORD_HERE' not in mongodb_connection_string %}cosmos{% else %}inmemory{% endif %}",
+  "SUBSCRIBER_REPOSITORY": "{% if mongodb_connection_string is defined and mongodb_connection_string != '' and mongodb_connection_string | length > 20 %}cosmos{% else %}inmemory{% endif %}",
   "FEATUREFLAGS": {
     "USEAZURESTORAGE": {% if storage_account is defined and storage_account != '' %}true{% else %}false{% endif %}
   }

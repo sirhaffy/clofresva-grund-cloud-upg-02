@@ -1,0 +1,68 @@
+name: 'Setup Ansible'
+description: 'Sets up Ansible configuration and inventory for deployment'
+
+inputs:
+  bastion_ip:
+    description: 'Bastion server IP address'
+    required: true
+  app_ip:
+    description: 'App server IP address'
+    required: true
+  project_name:
+    description: 'Project name'
+    required: true
+  storage_account:
+    description: 'Storage account name'
+    required: false
+    default: ''
+  blob_endpoint:
+    description: 'Blob endpoint URL'
+    required: false
+    default: ''
+  mongodb_connection_string_b64:
+    description: 'Base64 encoded MongoDB connection string'
+    required: false
+    default: ''
+  github_repo:
+    description: 'GitHub repository name'
+    required: true
+  github_runner_token:
+    description: 'GitHub runner token'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Create Ansible config
+      shell: bash
+      run: |
+        mkdir -p ./ansible
+        echo "[defaults]" > ./ansible/ansible.cfg
+        echo "host_key_checking = False" >> ./ansible/ansible.cfg
+        echo "roles_path = ./ansible/roles" >> ./ansible/ansible.cfg
+
+        # Set the environment variable
+        echo "ANSIBLE_CONFIG=./ansible/ansible.cfg" >> $GITHUB_ENV
+
+    - name: Create Ansible inventory
+      shell: bash
+      run: |
+        mkdir -p ./ansible/inventories
+
+        cat > ./ansible/inventories/azure_rm.yaml << EOF
+        all:
+          hosts:
+            app_server:
+              ansible_host: ${{ inputs.app_ip }}
+              ansible_user: azureuser
+              ansible_ssh_private_key_file: ~/.ssh/clofresva_gc_upg02_azure_key
+              ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@${{ inputs.bastion_ip }}"'
+          vars:
+            project_name: ${{ inputs.project_name }}
+            storage_account: ${{ inputs.storage_account }}
+            blob_endpoint: ${{ inputs.blob_endpoint }}
+            container_name: appdata
+            github_repo: ${{ inputs.github_repo }}
+            github_runner_token: ${{ inputs.github_runner_token }}
+            mongodb_connection_string_base64: ${{ inputs.mongodb_connection_string_b64 }}
+        EOF

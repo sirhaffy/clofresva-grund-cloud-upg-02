@@ -15,7 +15,7 @@ else
 PROJECT_NAME=clofresva-gc-upg02
 RESOURCE_GROUP=RGCloFreSvaUpg02
 LOCATION=northeurope
-SSH_KEY_PATH=~/.ssh/id_clofresvagcupg02
+SSH_KEY_PATH=~/.ssh/clofresva_gc_upg02_azure_key
 EOF
     echo ".env file created with default values. Please edit it as needed."
   fi
@@ -23,7 +23,7 @@ fi
 
 # Check if SSH key exists
 SSH_KEY_PATH=$(grep SSH_KEY_PATH .env | cut -d= -f2)
-SSH_KEY_PATH=${SSH_KEY_PATH:-"$HOME/.ssh/id_clofresvagcupg02"}
+SSH_KEY_PATH=${SSH_KEY_PATH:-"$HOME/.ssh/clofresva_gc_upg02_azure_key"}
 
 if [ ! -f "$SSH_KEY_PATH" ] || [ ! -f "${SSH_KEY_PATH}.pub" ]; then
   echo "No SSH key found at $SSH_KEY_PATH. Generating new key..."
