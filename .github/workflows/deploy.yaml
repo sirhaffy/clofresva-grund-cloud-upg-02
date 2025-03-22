@@ -143,13 +143,14 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # Använd vår återanvändbara SSH-uppsättning
+      # Use our reusable SSH setup
       - name: Set up SSH keys
         uses: ./.github/actions/setup-ssh
         with:
           ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Generate fresh runner token
+      # Generate a new runner token
+      - name: Generate runner token
         id: generate_token
         run: |
           echo "Getting fresh runner token..."
@@ -163,6 +164,7 @@ jobs:
           echo "::add-mask::$TOKEN"
           echo "Fresh token generated! (masked for security)"
 
+      # Deploy the infrastructure using Bicep
       - name: Deploy Infrastructure
         id: deploy
         uses: azure/arm-deploy@v1
@@ -177,11 +179,25 @@ jobs:
             location=${{ env.LOCATION }}
           deploymentName: main
 
+      # Get the outputs from the deployment
       - name: Get Deployment Outputs
+        id: outputs
         run: |
           # Get outputs like storage account, blob endpoint, etc.
+          echo "Getting Bastion IP..."
+          BASTION_IP=$(az deployment group show \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name main \
+            --query "properties.outputs.bastionHostIp.value" \
+            --output tsv)
 
-          # Get MongoDB connection string with proper error handling
+          echo "Getting App server IP..."
+          APP_IP=$(az deployment group show \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name main \
+            --query "properties.outputs.appServerPrivateIp.value" \
+            --output tsv)
+
           echo "Getting MongoDB connection string..."
           MONGODB_CONNECTION_STRING=$(az deployment group show \
             --resource-group ${{ env.RESOURCE_GROUP }} \
@@ -189,13 +205,47 @@ jobs:
             --query "properties.outputs.dotNetMongoConnectionString.value" \
             --output tsv)
 
-          # Print length for debugging (don't print the actual string)
+          echo "Getting storage account name..."
+          STORAGE_ACCOUNT=$(az deployment group show \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name main \
+            --query "properties.outputs.storageAccountName.value" \
+            --output tsv)
+
+          echo "Getting blob endpoint..."
+          BLOB_ENDPOINT=$(az deployment group show \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name main \
+            --query "properties.outputs.blobEndpoint.value" \
+            --output tsv)
+
+          echo "Bastion IP: $BASTION_IP"
+          echo "App IP: $APP_IP"
+          echo "Storage Account: $STORAGE_ACCOUNT"
+          echo "Blob Endpoint: $BLOB_ENDPOINT"
           echo "MongoDB connection string length: ${#MONGODB_CONNECTION_STRING}"
 
-          # Base64 encode it
+          # Sätt variabler i BÅDE miljövariabler OCH outputs
+
+          # 1. Miljövariabler (för detta job)
+          echo "BASTION_IP=$BASTION_IP" >> $GITHUB_ENV
+          echo "APP_IP=$APP_IP" >> $GITHUB_ENV
+          echo "MONGODB_CONNECTION_STRING=$MONGODB_CONNECTION_STRING" >> $GITHUB_ENV
+          echo "STORAGE_ACCOUNT=$STORAGE_ACCOUNT" >> $GITHUB_ENV
+          echo "BLOB_ENDPOINT=$BLOB_ENDPOINT" >> $GITHUB_ENV
+
+          # 2. Outputs (för efterföljande jobb)
+          echo "BASTION_IP=$BASTION_IP" >> $GITHUB_OUTPUT
+          echo "APP_IP=$APP_IP" >> $GITHUB_OUTPUT
+          echo "MONGODB_CONNECTION_STRING=$MONGODB_CONNECTION_STRING" >> $GITHUB_OUTPUT
+          echo "STORAGE_ACCOUNT=$STORAGE_ACCOUNT" >> $GITHUB_OUTPUT
+          echo "BLOB_ENDPOINT=$BLOB_ENDPOINT" >> $GITHUB_OUTPUT
+
+          # Base64 encode MongoDB connection string
           if [ -n "$MONGODB_CONNECTION_STRING" ] && [ ${#MONGODB_CONNECTION_STRING} -gt 20 ]; then
             MONGODB_CONNECTION_STRING_B64=$(echo -n "$MONGODB_CONNECTION_STRING" | base64 -w0)
-            echo "MONGODB_CONNECTION_STRING_BASE64=$MONGODB_CONNECTION_STRING_B64" >> $GITHUB_ENV
+            echo "MONGODB_CONNECTION_STRING_B64=$MONGODB_CONNECTION_STRING_B64" >> $GITHUB_ENV
+            echo "MONGODB_CONNECTION_STRING_B64=$MONGODB_CONNECTION_STRING_B64" >> $GITHUB_OUTPUT
             echo "Encoded MongoDB connection string (first 10 chars): ${MONGODB_CONNECTION_STRING_B64:0:10}..."
           else
             echo "Warning: Invalid MongoDB connection string, length: ${#MONGODB_CONNECTION_STRING}"
@@ -229,11 +279,11 @@ jobs:
 
           # Test SSH to bastion
           echo "Testing SSH to bastion host at $BASTION_IP..."
-          ssh -i ~/.ssh/id_clofresvagcupg02 -o ConnectTimeout=10 azureuser@$BASTION_IP "echo 'Bastion connection successful!'" || echo "WARNING: Bastion connection failed!"
+          ssh -i ~/.ssh/clofresva_gc_upg02_azure_key -o ConnectTimeout=10 azureuser@$BASTION_IP "echo 'Bastion connection successful!'" || echo "WARNING: Bastion connection failed!"
 
           # Test SSH to app server via bastion
           echo "Testing SSH to app server at $APP_IP via bastion..."
-          ssh -i ~/.ssh/id_clofresvagcupg02 -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@$BASTION_IP" azureuser@$APP_IP "echo 'App server connection successful!'" || echo "WARNING: App server connection failed!"
+          ssh -i ~/.ssh/clofresva_gc_upg02_azure_key -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP" azureuser@$APP_IP "echo 'App server connection successful!'" || echo "WARNING: App server connection failed!"
 
   configure-servers:
     name: Configure Servers with Ansible
@@ -262,21 +312,6 @@ jobs:
         uses: ./.github/actions/setup-ssh
         with:
           ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      # Generate new runner token
-      - name: Generate new runner token
-        id: generate_token
-        run: |
-          echo "Getting new runner token..."
-          TOKEN=$(curl -X POST -H "Authorization: token ${{ secrets.PAT_TOKEN }}" \
-            -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/${{ env.REPO_NAME }}/actions/runners/registration-token \
-            | jq -r .token)
-
-          # Securely set the token as an environment variable (won't be logged)
-          echo "RUNNER_TOKEN=$TOKEN" >> $GITHUB_ENV
-          echo "::add-mask::$TOKEN"
-          echo "New token generated! (masked for security)"
 
       - name: Debug environment variables
         run: |
@@ -318,11 +353,11 @@ jobs:
 
           # Test SSH to bastion
           echo "Testing SSH to bastion host at $BASTION_IP..."
-          ssh -i ~/.ssh/id_clofresvagcupg02 -o ConnectTimeout=10 azureuser@$BASTION_IP "echo 'Bastion connection successful!'" || echo "WARNING: Bastion connection failed!"
+          ssh -i ~/.ssh/clofresva_gc_upg02_azure_key -o ConnectTimeout=10 azureuser@$BASTION_IP "echo 'Bastion connection successful!'" || echo "WARNING: Bastion connection failed!"
 
           # Test SSH to app server via bastion
           echo "Testing SSH to app server at $APP_IP via bastion..."
-          ssh -i ~/.ssh/id_clofresvagcupg02 -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@$BASTION_IP" azureuser@$APP_IP "echo 'App server connection successful!'" || echo "WARNING: App server connection failed!"
+          ssh -i ~/.ssh/clofresva_gc_upg02_azure_key -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP" azureuser@$APP_IP "echo 'App server connection successful!'" || echo "WARNING: App server connection failed!"
 
       # Run Ansible to configure servers
       - name: Run Ansible
@@ -349,8 +384,8 @@ jobs:
           echo "    app_server:" >> ./ansible/inventories/azure_rm.yaml
           echo "      ansible_host: $APP_IP" >> ./ansible/inventories/azure_rm.yaml
           echo "      ansible_user: azureuser" >> ./ansible/inventories/azure_rm.yaml
-          echo "      ansible_ssh_private_key_file: ~/.ssh/id_clofresvagcupg02" >> ./ansible/inventories/azure_rm.yaml
-          echo "      ansible_ssh_common_args: '-o ProxyCommand=\"ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@$BASTION_IP\"'" >> ./ansible/inventories/azure_rm.yaml
+          echo "      ansible_ssh_private_key_file: ~/.ssh/clofresva_gc_upg02_azure_key" >> ./ansible/inventories/azure_rm.yaml
+          echo "      ansible_ssh_common_args: '-o ProxyCommand=\"ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP\"'" >> ./ansible/inventories/azure_rm.yaml
           echo "  vars:" >> ./ansible/inventories/azure_rm.yaml
           echo "    project_name: ${{ env.PROJECT_NAME }}" >> ./ansible/inventories/azure_rm.yaml
           echo "    storage_account: ${{ env.STORAGE_ACCOUNT }}" >> ./ansible/inventories/azure_rm.yaml
@@ -416,7 +451,7 @@ jobs:
           # Backup existing app if it exists (via SSH)
           if [ "${{ env.APP_IP }}" != "" ] && [ "${{ env.BASTION_IP }}" != "" ]; then
             echo "Creating backup of existing app..."
-            ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@$BASTION_IP" -i ~/.ssh/id_clofresvagcupg02 azureuser@$APP_IP "
+            ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP" -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$APP_IP "
               if [ -d /var/www/app ]; then
                 sudo cp -r /var/www/app /var/www/app_backup_$(date +%Y%m%d_%H%M%S)
               fi
@@ -464,7 +499,7 @@ jobs:
           sleep 10
 
           # Check service status
-          ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@$BASTION_IP" -i ~/.ssh/id_clofresvagcupg02 azureuser@$APP_IP "
+          ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP" -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$APP_IP "
             echo 'Service status:'
             sudo systemctl status webapp.service || true
 
@@ -528,7 +563,7 @@ jobs:
 
           echo "Testing SSH connectivity:"
           echo "Bastion IP: $BASTION_IP"
-          ssh -v -i ~/.ssh/id_clofresvagcupg02 azureuser@$BASTION_IP "echo 'Connected to Bastion'" || echo "Failed to connect to Bastion"
+          ssh -v -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP "echo 'Connected to Bastion'" || echo "Failed to connect to Bastion"
 
       - name: Download App Artifact
         uses: actions/download-artifact@v4
@@ -555,13 +590,13 @@ jobs:
           echo "Using Bastion IP: $BASTION_IP"
 
           echo "Creating target directory on remote server..."
-          ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@$BASTION_IP" -i ~/.ssh/id_clofresvagcupg02 azureuser@$APP_IP "sudo mkdir -p /tmp/webapp && sudo chown azureuser:azureuser /tmp/webapp"
+          ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP" -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$APP_IP "sudo mkdir -p /tmp/webapp && sudo chown azureuser:azureuser /tmp/webapp"
 
           echo "Copying files to remote server..."
-          scp -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@$BASTION_IP" -i ~/.ssh/id_clofresvagcupg02 -r ./webapp-files/* azureuser@$APP_IP:/tmp/webapp/
+          scp -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP" -i ~/.ssh/clofresva_gc_upg02_azure_key -r ./webapp-files/* azureuser@$APP_IP:/tmp/webapp/
 
           echo "Deploying files on app server..."
-          ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_clofresvagcupg02 azureuser@$BASTION_IP" -i ~/.ssh/id_clofresvagcupg02 azureuser@$APP_IP "
+          ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP" -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$APP_IP "
             echo 'Deploying application...'
             sudo systemctl stop webapp.service || echo 'Service not running yet'
 
