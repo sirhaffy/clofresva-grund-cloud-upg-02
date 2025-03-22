@@ -735,6 +735,7 @@ jobs:
   deploy-app:
     name: Deploy Application as Artifact
     needs: [check-changes, deploy-infrastructure, get-infrastructure-info, configure-servers]
+    # 'always' - Evaluate the job even if previous jobs fail
     if: >
       ${{ always() &&
       needs.check-changes.outputs.run_webapp == 'true' &&
@@ -847,7 +848,7 @@ jobs:
   deploy-to-server:
     name: Deploy Artifact to App-Server
     needs: [deploy-app, deploy-infrastructure, get-infrastructure-info]
-    if: ${{ needs.deploy-app.result == 'success' && (needs.deploy-infrastructure.result == 'success' || (needs.deploy-infrastructure.result == 'skipped' && needs.get-infrastructure-info.result == 'success')) }}
+    if: ${{ always() && needs.deploy-app.result == 'success' }}
     runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
