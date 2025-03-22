@@ -517,13 +517,10 @@ jobs:
   configure-servers:
     name: Configure Servers with Ansible
     needs: [check-changes, deploy-infrastructure, get-infrastructure-info]
-    if: ${{
-        needs.check-changes.outputs.run_ansible == 'true' &&
-        ((needs.deploy-infrastructure.result == 'success') ||
-        (needs.deploy-infrastructure.result == 'skipped' &&
-        needs.get-infrastructure-info.result == 'success'))
-      }}
-
+    if: >
+      ${{ needs.check-changes.outputs.run_ansible == 'true' &&
+      (needs.deploy-infrastructure.result == 'success' ||
+      (needs.deploy-infrastructure.result == 'skipped' && needs.get-infrastructure-info.result == 'success')) }}
     runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
@@ -661,15 +658,11 @@ jobs:
   # Build and deploy the dotnet app as an artifact and upload, if files were changed.
   deploy-app:
     name: Deploy Application as Artifact
-
-    needs: [check-changes, get-infrastructure-info, configure-servers]
-    if: ${{
-        needs.check-changes.outputs.run_ansible == 'true' &&
-        ((needs.deploy-infrastructure.result == 'success') ||
-        (needs.deploy-infrastructure.result == 'skipped' &&
-        needs.get-infrastructure-info.result == 'success'))
-      }}
-
+    needs: [check-changes, deploy-infrastructure, get-infrastructure-info]
+    if: >
+      ${{ needs.check-changes.outputs.run_webapp == 'true' &&
+      (needs.deploy-infrastructure.result == 'success' ||
+      (needs.deploy-infrastructure.result == 'skipped' && needs.get-infrastructure-info.result == 'success')) }}
     runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
@@ -776,10 +769,11 @@ jobs:
   # Deploy the artifact to the app server.
   deploy-to-server:
     name: Deploy Artifact to App-Server
-
-    needs: [deploy-app, get-infrastructure-info]
-    if: ${{ needs.deploy-app.result == 'success' && needs.get-infrastructure-info.result == 'success' }}
-
+    needs: [deploy-app, deploy-infrastructure, get-infrastructure-info]
+    if: >
+      ${{ needs.deploy-app.result == 'success' &&
+      (needs.deploy-infrastructure.result == 'success' ||
+      (needs.deploy-infrastructure.result == 'skipped' && needs.get-infrastructure-info.result == 'success')) }}
     runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
