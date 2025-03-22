@@ -65,6 +65,10 @@ jobs:
           # For push/PR events, check what files changed.
           git diff --name-only HEAD^ HEAD > changed_files.txt
 
+          # Debug - show what files are changed
+          echo "List of changed files:"
+          cat changed_files.txt
+
           # Initialize change flags.
           bicep_changes=false
           ansible_changes=false
@@ -87,18 +91,47 @@ jobs:
             ansible_changes=true
           fi
 
-          # Check for webapp changes.
-          if grep -i -q "WebbApp" changed_files.txt || \
-            grep -i -q "\.cs$" changed_files.txt || \
-            grep -i -q "\.csproj$" changed_files.txt || \
-            grep -i -q "\.cshtml$" changed_files.txt || \
-            grep -i -q "wwwroot" changed_files.txt || \
-            grep -i -q "Controllers" changed_files.txt || \
-            grep -i -q "Views" changed_files.txt || \
-            grep -i -q "Models" changed_files.txt; then
-            echo "Found webapp changes"
+          # Check for webapp changes and show what we find
+          echo "Checking for webapp related changes..."
+
+          # Check for specific webapp files and show what we find
+          if grep -i "\.cs" changed_files.txt; then
+            echo "Found .cs file changes"
             webapp_changes=true
           fi
+
+          if grep -i "\.csproj" changed_files.txt; then
+            echo "Found .csproj file changes"
+            webapp_changes=true
+          fi
+
+          if grep -i "WebbApp" changed_files.txt; then
+            echo "Found WebbApp directory changes"
+            webapp_changes=true
+          fi
+
+          if grep -i "wwwroot" changed_files.txt; then
+            echo "Found wwwroot directory changes"
+            webapp_changes=true
+          fi
+
+          if grep -i "Controllers" changed_files.txt; then
+            echo "Found Controllers directory changes"
+            webapp_changes=true
+          fi
+
+          if grep -i "Views" changed_files.txt; then
+            echo "Found Views directory changes"
+            webapp_changes=true
+          fi
+
+          if grep -i "Models" changed_files.txt; then
+            echo "Found Models directory changes"
+            webapp_changes=true
+          fi
+
+          # Print the final status
+          echo "Final webapp_changes status: $webapp_changes"
 
           # Set outputs based on changes.
           echo "run_bicep=$bicep_changes" >> $GITHUB_OUTPUT
@@ -125,11 +158,6 @@ jobs:
           echo "==================== CHANGE DETECTION SUMMARY ===================="
           echo -e "$summary"
           echo "================================================================="
-
-          echo "DEBUG - Change detection flags:"
-          echo "Infrastructure changes (bicep): $bicep_changes"
-          echo "Configuration changes (ansible): $ansible_changes"
-          echo "Application changes (webapp): $webapp_changes"
 
           # List the changed files.
           cat changed_files.txt
@@ -668,11 +696,12 @@ jobs:
   # Build and deploy the dotnet app as an artifact and upload, if files were changed.
   deploy-app:
     name: Deploy Application as Artifact
-    needs: [check-changes, deploy-infrastructure, get-infrastructure-info]
+    needs: [check-changes, deploy-infrastructure, get-infrastructure-info, configure-servers]
     if: >
       ${{ needs.check-changes.outputs.run_webapp == 'true' &&
       (needs.deploy-infrastructure.result == 'success' ||
-      (needs.deploy-infrastructure.result == 'skipped' && needs.get-infrastructure-info.result == 'success')) }}
+      (needs.deploy-infrastructure.result == 'skipped' && needs.get-infrastructure-info.result == 'success')) &&
+      (needs.configure-servers.result == 'success' || needs.configure-servers.result == 'skipped') }}
     runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
