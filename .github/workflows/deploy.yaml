@@ -10,10 +10,16 @@ on:
         required: false
         default: 'false'
 
+      skip_bicep:
+        description: 'Skip Bicep deployment'
+        required: false
+        default: 'false'
+
       full_deployment:
         description: 'Run full infrastructure deployment'
         required: false
         default: 'false'
+
 env:
   PROJECT_NAME: ${{ secrets.PROJECT_NAME }}
   RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
