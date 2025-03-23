@@ -15,6 +15,11 @@ on:
         required: false
         default: 'false'
 
+      run_webapp:
+        description: 'Force run webapp deployment'
+        required: false
+        default: 'false'
+
       full_deployment:
         description: 'Run full infrastructure deployment'
         required: false
@@ -686,8 +691,9 @@ jobs:
         run: |
           echo "check-changes outputs:"
           echo "run_webapp: '${{ needs.check-changes.outputs.run_webapp }}'"
-          echo "run_webapp (length): ${#'${{ needs.check-changes.outputs.run_webapp }}'}"
-          echo "run_webapp with quotes: '\"${{ needs.check-changes.outputs.run_webapp }}\"'"
+          RUN_WEBAPP="${{ needs.check-changes.outputs.run_webapp }}"
+          echo "run_webapp (length): ${#RUN_WEBAPP}"
+          echo "run_webapp with quotes: \"$RUN_WEBAPP\""
           echo "Exact comparison with 'true': ${{ needs.check-changes.outputs.run_webapp == 'true' }}"
 
           echo "deploy-infrastructure result: '${{ needs.deploy-infrastructure.result }}'"
@@ -715,7 +721,12 @@ jobs:
     name: Deploy Application as Artifact
     needs: [check-changes, deploy-infrastructure, get-infrastructure-info]
 
-    if: ${{ needs.check-changes.outputs.run_webapp == 'true' && (needs.deploy-infrastructure.result == 'success' || (needs.deploy-infrastructure.result == 'skipped' && needs.get-infrastructure-info.result == 'success')) }}
+    if: >
+      ${{ (github.event.inputs.run_webapp == 'true') ||
+          (needs.check-changes.outputs.run_webapp == 'true' &&
+          (needs.deploy-infrastructure.result == 'success' ||
+          (needs.deploy-infrastructure.result == 'skipped' &&
+          needs.get-infrastructure-info.result == 'success'))) }}
 
     runs-on: ubuntu-latest
     env:
