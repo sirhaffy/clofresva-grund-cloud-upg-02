@@ -208,6 +208,14 @@ jobs:
       #       echo "  - $file"
       #     done || echo "  No matching Models directory files."
 
+      - name: Debug outputs
+        run: |
+          echo "Final output values:"
+          echo "run_bicep=${{ steps.check_files.outputs.run_bicep }}"
+          echo "run_ansible=${{ steps.check_files.outputs.run_ansible }}"
+          echo "run_webapp=${{ steps.check_files.outputs.run_webapp }}"
+          echo "changes_detected=${{ steps.check_files.outputs.changes_detected }}"
+
 
 
 
