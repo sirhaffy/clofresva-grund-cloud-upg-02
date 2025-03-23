@@ -225,8 +225,7 @@ jobs:
       ${{ needs.check-changes.result == 'success' &&
       needs.check-changes.outputs.run_bicep != 'true' &&
       (needs.check-changes.outputs.run_ansible == 'true' ||
-      needs.check-changes.outputs.run_webapp == 'true' ||
-      needs.check-changes.outputs.changes_detected == 'true') }}
+      needs.check-changes.outputs.run_webapp == 'true') }}
     runs-on: ubuntu-latest
     outputs:
       BASTION_IP: ${{ steps.get_infrastructure_data.outputs.BASTION_IP }}
