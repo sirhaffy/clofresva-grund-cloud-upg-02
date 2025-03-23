@@ -8,30 +8,20 @@ param bastionSubnetPrefix string
 param appServerSubnetPrefix string
 param reverseProxySubnetPrefix string
 
-// Application Security Groups
-resource bastionASG 'Microsoft.Network/applicationSecurityGroups@2021-05-01' = {
-  name: '${projectName}-bastion-asg'
+// ASG (Application Security Group)
+resource internalAsgSsh 'Microsoft.Network/applicationSecurityGroups@2021-02-01' = {
+  name: '${projectName}-asg-internal-ssh'
   location: location
 }
 
-resource appServerASG 'Microsoft.Network/applicationSecurityGroups@2021-05-01' = {
-  name: '${projectName}-appserver-asg'
-  location: location
-}
-
-resource reverseProxyASG 'Microsoft.Network/applicationSecurityGroups@2021-05-01' = {
-  name: '${projectName}-proxy-asg'
-  location: location
-}
-
-// Bastion Subnet NSG
-resource bastionNSG 'Microsoft.Network/networkSecurityGroups@2021-05-01' = {
-  name: '${projectName}-bastion-nsg'
+// NSG Internal SSH
+resource sshNsg 'Microsoft.Network/networkSecurityGroups@2021-05-01' = {
+  name: '${projectName}-nsg-ssh'
   location: location
   properties: {
     securityRules: [
       {
-        name: 'AllowSSHInbound'
+        name: 'AllowSSHFromBastion'
         properties: {
           priority: 100
           access: 'Allow'
@@ -39,10 +29,24 @@ resource bastionNSG 'Microsoft.Network/networkSecurityGroups@2021-05-01' = {
           protocol: 'Tcp'
           sourcePortRange: '*'
           destinationPortRange: '22'
-          sourceAddressPrefix: 'Internet'
-          destinationAddressPrefix: '*'
+          sourceAddressPrefix: bastionSubnetPrefix // Only allow SSH from the bastion subnet.
+          destinationApplicationSecurityGroups: [
+            {
+              id: internalAsgSsh.id
+            }
+          ]
         }
       }
+    ]
+  }
+}
+
+// Bastion Subnet NSG
+resource bastionNsg 'Microsoft.Network/networkSecurityGroups@2021-05-01' = {
+  name: '${projectName}-bastion-nsg'
+  location: location
+  properties: {
+    securityRules: [
       {
         name: 'AllowBastionPort'
         properties: {
@@ -61,28 +65,11 @@ resource bastionNSG 'Microsoft.Network/networkSecurityGroups@2021-05-01' = {
 }
 
 // App Server Subnet NSG
-resource appServerNSG 'Microsoft.Network/networkSecurityGroups@2021-05-01' = {
+resource appServerNsg 'Microsoft.Network/networkSecurityGroups@2021-05-01' = {
   name: '${projectName}-appserver-nsg'
   location: location
   properties: {
     securityRules: [
-      {
-        name: 'AllowSSHFromBastion'
-        properties: {
-          priority: 100
-          access: 'Allow'
-          direction: 'Inbound'
-          protocol: 'Tcp'
-          sourcePortRange: '*'
-          destinationPortRange: '22'
-          sourceApplicationSecurityGroups: [
-            {
-              id: bastionASG.id
-            }
-          ]
-          destinationAddressPrefix: '*'
-        }
-      }
       {
         name: 'AllowAppPortFromReverseProxy'
         properties: {
@@ -92,11 +79,7 @@ resource appServerNSG 'Microsoft.Network/networkSecurityGroups@2021-05-01' = {
           protocol: 'Tcp'
           sourcePortRange: '*'
           destinationPortRange: '5000'
-          sourceApplicationSecurityGroups: [
-            {
-              id: reverseProxyASG.id
-            }
-          ]
+          sourceAddressPrefix: 'VirtualNetwork'
           destinationAddressPrefix: '*'
         }
       }
@@ -105,28 +88,11 @@ resource appServerNSG 'Microsoft.Network/networkSecurityGroups@2021-05-01' = {
 }
 
 // Reverse Proxy Subnet NSG
-resource reverseProxyNSG 'Microsoft.Network/networkSecurityGroups@2021-05-01' = {
+resource reverseProxyNsg 'Microsoft.Network/networkSecurityGroups@2021-05-01' = {
   name: '${projectName}-proxy-nsg'
   location: location
   properties: {
     securityRules: [
-      {
-        name: 'AllowSSHFromBastion'
-        properties: {
-          priority: 100
-          access: 'Allow'
-          direction: 'Inbound'
-          protocol: 'Tcp'
-          sourcePortRange: '*'
-          destinationPortRange: '22'
-          sourceApplicationSecurityGroups: [
-            {
-              id: bastionASG.id
-            }
-          ]
-          destinationAddressPrefix: '*'
-        }
-      }
       {
         name: 'AllowHTTPInbound'
         properties: {
@@ -160,7 +126,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
         properties: {
           addressPrefix: bastionSubnetPrefix
           networkSecurityGroup: {
-            id: bastionNSG.id
+            id: bastionNsg.id // Connect the NSG to the bastion subnet.
           }
         }
       }
@@ -169,7 +135,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
         properties: {
           addressPrefix: appServerSubnetPrefix
           networkSecurityGroup: {
-            id: appServerNSG.id
+            id: appServerNsg.id // Connect the NSG to the app server subnet.
           }
         }
       }
@@ -178,7 +144,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
         properties: {
           addressPrefix: reverseProxySubnetPrefix
           networkSecurityGroup: {
-            id: reverseProxyNSG.id
+            id: reverseProxyNsg.id // Connect the NSG to the reverse proxy subnet.
           }
         }
       }
@@ -192,6 +158,4 @@ output vnetId string = vnet.id
 output bastionSubnetId string = '${vnet.id}/subnets/BastionSubnet'
 output appServerSubnetId string = '${vnet.id}/subnets/AppServerSubnet'
 output reverseProxySubnetId string = '${vnet.id}/subnets/ReverseProxySubnet'
-output bastionASGId string = bastionASG.id
-output appServerASGId string = appServerASG.id
-output reverseProxyASGId string = reverseProxyASG.id
+output internalAsgSsh string = internalAsgSsh.id

@@ -45,7 +45,7 @@ module appServer './modules/app-server.bicep' = {
     subnetId: networkModule.outputs.appServerSubnetId
     adminUsername: adminUsername
     sshPublicKey: sshPublicKey
-    asgId: networkModule.outputs.appServerASGId
+    asgId: networkModule.outputs.internalAsgSsh
   }
 }
 
@@ -58,7 +58,7 @@ module reverseProxy './modules/reverse-proxy.bicep' = {
     subnetId: networkModule.outputs.reverseProxySubnetId
     adminUsername: adminUsername
     sshPublicKey: sshPublicKey
-    asgId: networkModule.outputs.reverseProxyASGId
+    asgId: networkModule.outputs.internalAsgSsh
   }
 }
 

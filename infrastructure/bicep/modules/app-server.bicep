@@ -6,15 +6,6 @@ param asgId string
 @secure() // Secure the SSH public key
 param sshPublicKey string
 
-// Create public static IP address for App Server
-resource publicIp 'Microsoft.Network/publicIPAddresses@2021-05-01' = {
-  name: '${appServerName}-public-ip'
-  location: location
-  properties: {
-    publicIPAllocationMethod: 'Static' // Static IP address
-  }
-}
-
 // Create network interface for App Server
 resource appNic 'Microsoft.Network/networkInterfaces@2021-05-01' = {
   name: '${appServerName}-nic'
@@ -28,12 +19,9 @@ resource appNic 'Microsoft.Network/networkInterfaces@2021-05-01' = {
           subnet: {
             id: subnetId
           }
-          publicIPAddress: {
-            id: publicIp.id
-          }
           applicationSecurityGroups: [
             {
-              id: asgId // Associate the ASG with the NIC
+              id: asgId
             }
           ]
         }

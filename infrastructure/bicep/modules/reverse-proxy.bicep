@@ -6,7 +6,7 @@ param asgId string
 @secure()
 param sshPublicKey string
 
-// Create public IP address for App Server - ALLTID STATIC
+// Create public IP address for App Server
 resource publicIp 'Microsoft.Network/publicIPAddresses@2021-05-01' = {
   name: '${appServerName}-public-ip'
   location: location
@@ -65,7 +65,6 @@ resource appServerVM 'Microsoft.Compute/virtualMachines@2021-07-01' = {
         managedDisk: {
           storageAccountType: 'Standard_LRS'
         }
-        // Ta bort diskSizeGB helt - låt Azure använda default
       }
     }
     osProfile: {
