@@ -144,43 +144,18 @@ jobs:
           echo "run_webapp=${{ steps.check_files.outputs.run_webapp }}"
           echo "changes_detected=${{ steps.check_files.outputs.changes_detected }}"
 
-  debug-job:
-    name: Debug before job
-    needs: check-changes
 
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-    - name: Debug
-      run: |
-        echo "Outputs precis innan jobbet körs:"
-        echo "check-changes.result: ${{ needs.check-changes.result }}"
-        echo "run_bicep: '${{ needs.check-changes.outputs.run_bicep }}'"
-        echo "run_ansible: '${{ needs.check-changes.outputs.run_ansible }}'"
-        echo "run_webapp: '${{ needs.check-changes.outputs.run_webapp }}'"
-        echo "changes_detected: '${{ needs.check-changes.outputs.changes_detected }}'"
-
-        # Testa olika expressions
-        echo "Test expressions:"
-        echo "run_bicep != true: ${{ needs.check-changes.outputs.run_bicep != true }}"
-        echo "run_ansible == true: ${{ needs.check-changes.outputs.run_ansible == true }}"
-        echo "run_webapp == true: ${{ needs.check-changes.outputs.run_webapp == true }}"
-        echo "changes_detected == true: ${{ needs.check-changes.outputs.changes_detected == true }}"
 
   # ===========================================================================================
   # =============================Get Existing Infrastructure Info==============================
   # ===========================================================================================
 
-  # New job to get infrastructure info if we don't need to deploy infrastructure
+
+
   get-infrastructure-info:
     name: Get Existing Infrastructure Info
     needs: check-changes
-    if: >
-      ${{ needs.check-changes.result == 'success' &&
-      needs.check-changes.outputs.run_bicep != true &&
-      (needs.check-changes.outputs.run_ansible == true ||
-      needs.check-changes.outputs.run_webapp == true) &&
-      needs.check-changes.outputs.changes_detected == true }}
+    if: ${{ needs.check-changes.outputs.changes_detected == 'true' }}
     runs-on: ubuntu-latest
     outputs:
       BASTION_IP: ${{ steps.get_infrastructure_data.outputs.BASTION_IP }}
