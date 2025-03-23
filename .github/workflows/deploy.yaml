@@ -133,19 +133,19 @@ jobs:
           # Print the final status
           echo "Final webapp_changes status: $webapp_changes"
 
-          # Set outputs based on changes.
+          # Set outputs for what should be run.
           echo "run_bicep=$bicep_changes" >> $GITHUB_OUTPUT
           echo "run_ansible=$ansible_changes" >> $GITHUB_OUTPUT
           echo "run_webapp=$webapp_changes" >> $GITHUB_OUTPUT
 
-          # Determine if any changes were detected.
-          changes_detected=$([ "$bicep_changes" = "true" ] || [ "$ansible_changes" = "true" ] || [ "$webapp_changes" = "true" ] && echo "true" || echo "false")
-          echo "changes_detected=$changes_detected" >> $GITHUB_OUTPUT
+          # # Determine if any changes were detected.
+          # changes_detected=$([ "$bicep_changes" = "true" ] || [ "$ansible_changes" = "true" ] || [ "$webapp_changes" = "true" ] && echo "true" || echo "false")
+          # echo "changes_detected=$changes_detected" >> $GITHUB_OUTPUT
 
-          if [ "$bicep_changes" = "true" ] && (grep -q "mongodb" changed_files.txt || grep -q "cosmos" changed_files.txt); then
-            ansible_changes=true
-            echo "MongoDB/CosmosDB changes detected, will run Ansible"
-          fi
+          # if [ "$bicep_changes" = "true" ] && (grep -q "mongodb" changed_files.txt || grep -q "cosmos" changed_files.txt); then
+          #   ansible_changes=true
+          #   echo "MongoDB/CosmosDB changes detected, will run Ansible"
+          # fi
 
           # Create a change summary.
           summary="Changes detected:\n"
@@ -587,8 +587,8 @@ jobs:
     needs: [check-changes, deploy-infrastructure, get-infrastructure-info]
     if: >
       ${{ always() &&
+      needs.check-changes.result == 'success' &&
       needs.check-changes.outputs.run_ansible == 'true' &&
-      needs.check-changes.outputs.run_ansible != 'false' &&
       (needs.deploy-infrastructure.result == 'success' ||
       (needs.deploy-infrastructure.result == 'skipped' && needs.get-infrastructure-info.result == 'success')) }}
     runs-on: ubuntu-latest
