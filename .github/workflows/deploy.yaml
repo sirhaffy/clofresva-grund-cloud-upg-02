@@ -791,8 +791,8 @@ jobs:
   # Deploy the artifact to the app server.
   deploy-to-server:
     name: Deploy Artifact to App-Server
-    needs: [deploy-app, deploy-infrastructure, get-infrastructure-info]
-    if: ${{ needs.deploy-app.result == 'success' }}
+    needs: deploy-app
+    if: always() && needs.deploy-app.result == 'success'
     runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
