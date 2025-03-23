@@ -709,15 +709,9 @@ jobs:
     name: Deploy Application as Artifact
     needs: [check-changes, deploy-infrastructure, get-infrastructure-info]
     if: >
-      ${{
-        needs.check-changes.outputs.run_webapp == 'true' &&
-        (
-          needs.deploy-infrastructure.result == 'success' ||
-          (
-            needs.deploy-infrastructure.result == 'skipped' &&
-            needs.get-infrastructure-info.result == 'success'
-          )
-        ) }}
+      ${{ needs.check-changes.outputs.run_webapp == 'true' &&
+      (needs.deploy-infrastructure.result == 'success' ||
+      (needs.deploy-infrastructure.result == 'skipped' && needs.get-infrastructure-info.result == 'success')) }}
     runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
