@@ -18,8 +18,8 @@ public class HomeController : Controller
 
     public IActionResult Index()
     {
-        return View();
         ViewData["DeckardImageUrl"] = _imageService.GetImageUrl("badfon-art-starik-rebenok-igrushka.jpg");
+        return View();
     }
 
     public IActionResult Privacy()
