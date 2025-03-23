@@ -162,10 +162,10 @@ jobs:
 
         # Testa olika expressions
         echo "Test expressions:"
-        echo "run_bicep != 'true': ${{ needs.check-changes.outputs.run_bicep != 'true' }}"
-        echo "run_ansible == 'true': ${{ needs.check-changes.outputs.run_ansible == 'true' }}"
-        echo "run_webapp == 'true': ${{ needs.check-changes.outputs.run_webapp == 'true' }}"
-        echo "changes_detected == 'true': ${{ needs.check-changes.outputs.changes_detected == 'true' }}"
+        echo "run_bicep != true: ${{ needs.check-changes.outputs.run_bicep != true }}"
+        echo "run_ansible == true: ${{ needs.check-changes.outputs.run_ansible == true }}"
+        echo "run_webapp == true: ${{ needs.check-changes.outputs.run_webapp == true }}"
+        echo "changes_detected == true: ${{ needs.check-changes.outputs.changes_detected == true }}"
 
   # ===========================================================================================
   # =============================Get Existing Infrastructure Info==============================
