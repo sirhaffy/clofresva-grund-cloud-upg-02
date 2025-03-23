@@ -3,17 +3,23 @@
     var deployTime = System.IO.File.Exists("wwwroot/deploy-timestamp.txt")
         ? System.IO.File.ReadAllText("wwwroot/deploy-timestamp.txt")
         : DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
+    var deckardImageUrl = ViewData["DeckardImageUrl"] as string;
 }
 
 <div class="text-center">
-    <h1 class="display-4">Welcome stranger,</h1>
-    <p>Stay a while a listen....</p>
 
+    <div class="hero-section" style="background-image: url('@deckardImageUrl')">
+        <div class="hero-content text-white">
+        <h1 class="display-4">Welcome stranger,</h1>
+            <div class="hero-text">
+                <p>Stay a while a listen.</p>
+            </div>
+        </div>
+    </div>
 
     <div class="mt-4">
         <p>Server Info:</p>
         <ul class="list-unstyled">
-            <li>App Version: @(System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version)</li>
             <li>Server Time: @DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")</li>
             <li>Environment: @Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")</li>
         </ul>

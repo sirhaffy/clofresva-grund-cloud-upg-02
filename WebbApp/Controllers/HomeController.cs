@@ -30,6 +30,8 @@ public class HomeController : Controller
     {
         // Get hero image URL from the image service
         ViewData["HeroImageUrl"] = _imageService.GetImageUrl("hero.jpg");
+        ViewData["DeckardImageUrl"] = _imageService.GetImageUrl("badfon-art-starik-rebenok-igrushka.jpg");
+
         return View();
     }
 
@@ -38,5 +40,5 @@ public class HomeController : Controller
     {
         return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
     }
-    
+
 }
