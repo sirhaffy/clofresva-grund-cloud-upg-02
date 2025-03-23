@@ -219,7 +219,9 @@ jobs:
   get-infrastructure-info:
     name: Get Existing Infrastructure Info
     needs: check-changes
-    if: ${{ always() && (needs.check-changes.result == 'success') && (needs.check-changes.outputs.run_bicep != 'true') }}
+
+    if: ${{ needs.check-changes.outputs.run_bicep == 'false' && (needs.check-changes.outputs.run_ansible == 'true' || needs.check-changes.outputs.run_webapp == 'true') }}
+
     runs-on: ubuntu-latest
     outputs:
       BASTION_IP: ${{ steps.get_infrastructure_data.outputs.BASTION_IP }}
@@ -373,11 +375,12 @@ jobs:
 
 
 
-  # Check if dotnet app files were changed.
   deploy-infrastructure:
     name: Deploy Azure Infrastructure
     needs: check-changes
+
     if: ${{ needs.check-changes.outputs.run_bicep == 'true' }}
+
     runs-on: ubuntu-latest
     outputs:
       BASTION_IP: ${{ steps.deployment_data.outputs.BASTION_IP }}
@@ -584,13 +587,13 @@ jobs:
 
   configure-servers:
     name: Configure Servers with Ansible
+
     needs: [check-changes, deploy-infrastructure, get-infrastructure-info]
     if: >
-      ${{ always() &&
-      needs.check-changes.result == 'success' &&
-      needs.check-changes.outputs.run_ansible == 'true' &&
+      ${{ needs.check-changes.outputs.run_ansible == 'true' &&
       (needs.deploy-infrastructure.result == 'success' ||
       (needs.deploy-infrastructure.result == 'skipped' && needs.get-infrastructure-info.result == 'success')) }}
+
     runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
@@ -733,13 +736,13 @@ jobs:
   # Build and deploy the dotnet app as an artifact and upload, if files were changed.
   deploy-app:
     name: Deploy Application as Artifact
+
     needs: [check-changes, deploy-infrastructure, get-infrastructure-info]
-    # 'always' - Evaluate the job even if previous jobs fail
     if: >
-      ${{ always() &&
-      needs.check-changes.outputs.run_webapp == 'true' &&
+      ${{ needs.check-changes.outputs.run_webapp == 'true' &&
       (needs.deploy-infrastructure.result == 'success' ||
       (needs.deploy-infrastructure.result == 'skipped' && needs.get-infrastructure-info.result == 'success')) }}
+
     runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
@@ -846,8 +849,10 @@ jobs:
   # Deploy the artifact to the app server.
   deploy-to-server:
     name: Deploy Artifact to App-Server
+
     needs: [deploy-app, deploy-infrastructure, get-infrastructure-info]
-    if: ${{ always() && needs.deploy-app.result == 'success' }}
+    if: ${{ needs.deploy-app.result == 'success' }}
+
     runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
