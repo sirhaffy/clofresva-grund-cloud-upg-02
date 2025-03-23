@@ -811,18 +811,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # - name: Set IP variables
-      #   run: |
-      #     # Check if environment variables are available and set effective values if not.
-      #     if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
-      #       echo "Using fallback IP addresses"
-      #       echo "EFFECTIVE_APP_IP=10.0.2.4" >> $GITHUB_ENV
-      #       echo "EFFECTIVE_BASTION_IP=137.116.232.168" >> $GITHUB_ENV
-      #     else
-      #       echo "Using outputs from infrastructure deployment"
-      #       echo "EFFECTIVE_APP_IP=${{ env.APP_IP }}" >> $GITHUB_ENV
-      #       echo "EFFECTIVE_BASTION_IP=${{ env.BASTION_IP }}" >> $GITHUB_ENV
-      #     fi
+      - name: Set IP variables
+        run: |
+          # Check if environment variables are available and set effective values if not.
+          if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
+            echo "Using fallback IP addresses"
+            echo "EFFECTIVE_APP_IP=10.0.2.4" >> $GITHUB_ENV
+            echo "EFFECTIVE_BASTION_IP=137.116.232.168" >> $GITHUB_ENV
+          else
+            echo "Using outputs from infrastructure deployment"
+            echo "EFFECTIVE_APP_IP=${{ env.APP_IP }}" >> $GITHUB_ENV
+            echo "EFFECTIVE_BASTION_IP=${{ env.BASTION_IP }}" >> $GITHUB_ENV
+          fi
 
       # Use the SSH setup action.
       - name: Set up SSH keys
@@ -830,29 +830,29 @@ jobs:
         with:
           ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      # - name: Debug SSH configuration
-      #   run: |
-      #     echo "SSH directory contents:"
-      #     ls -la ~/.ssh/
+      - name: Debug SSH configuration
+        run: |
+          echo "SSH directory contents:"
+          ls -la ~/.ssh/
 
-      #     echo "SSH config file:"
-      #     cat ~/.ssh/config
+          echo "SSH config file:"
+          cat ~/.ssh/config
 
-      #     # Check if environment variables are available
-      #     if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
-      #       echo "WARNING: IP addresses not set. Using hardcoded values."
-      #       APP_IP="10.0.2.4"
-      #       BASTION_IP="137.116.232.168"
-      #     else
-      #       APP_IP="${{ env.APP_IP }}"
-      #       BASTION_IP="${{ env.BASTION_IP }}"
-      #     fi
+          # Check if environment variables are available
+          if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
+            echo "WARNING: IP addresses not set. Using hardcoded values."
+            APP_IP="10.0.2.4"
+            BASTION_IP="137.116.232.168"
+          else
+            APP_IP="${{ env.APP_IP }}"
+            BASTION_IP="${{ env.BASTION_IP }}"
+          fi
 
-      #     echo "Testing SSH connectivity:"
-      #     echo "Bastion IP: $BASTION_IP"
-      #     ssh -v -i ~/.ssh/clofresva_gc_upg02_azure_key \
-      #       azureuser@$BASTION_IP \
-      #       "echo 'Connected to Bastion'" || echo "Failed to connect to Bastion"
+          echo "Testing SSH connectivity:"
+          echo "Bastion IP: $BASTION_IP"
+          ssh -v -i ~/.ssh/clofresva_gc_upg02_azure_key \
+            azureuser@$BASTION_IP \
+            "echo 'Connected to Bastion'" || echo "Failed to connect to Bastion"
 
       - name: Download App Artifact
         uses: actions/download-artifact@v4
