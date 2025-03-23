@@ -19,6 +19,7 @@ public class HomeController : Controller
     public IActionResult Index()
     {
         return View();
+        ViewData["DeckardImageUrl"] = _imageService.GetImageUrl("badfon-art-starik-rebenok-igrushka.jpg");
     }
 
     public IActionResult Privacy()
@@ -30,7 +31,6 @@ public class HomeController : Controller
     {
         // Get hero image URL from the image service
         ViewData["HeroImageUrl"] = _imageService.GetImageUrl("hero.jpg");
-        ViewData["DeckardImageUrl"] = _imageService.GetImageUrl("badfon-art-starik-rebenok-igrushka.jpg");
 
         return View();
     }
