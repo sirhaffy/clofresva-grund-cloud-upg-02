@@ -367,11 +367,6 @@ jobs:
 
 
 
-
-
-
-
-
   # ===========================================================================================
   # ==============================Deploy Azure Infrastructure==================================
   # ===========================================================================================
@@ -521,13 +516,6 @@ jobs:
           # Debug: Print the Blob endpoint
           echo "Blob endpoint: $BLOB_ENDPOINT"
 
-          # Output the values to the console.
-          # echo "Bastion IP: $BASTION_IP"
-          # echo "App IP: $APP_IP"
-          # echo "Storage Account: $STORAGE_ACCOUNT"
-          # echo "Blob Endpoint: $BLOB_ENDPOINT"
-          # echo "MongoDB connection string length: ${#MONGODB_CONNECTION_STRING}"
-
           # Set the environment variables.
           echo "BASTION_IP=$BASTION_IP" >> $GITHUB_ENV
           echo "APP_IP=$APP_IP" >> $GITHUB_ENV
@@ -600,6 +588,7 @@ jobs:
     if: >
       ${{ always() &&
       needs.check-changes.outputs.run_ansible == 'true' &&
+      needs.check-changes.outputs.run_ansible != 'false' &&
       (needs.deploy-infrastructure.result == 'success' ||
       (needs.deploy-infrastructure.result == 'skipped' && needs.get-infrastructure-info.result == 'success')) }}
     runs-on: ubuntu-latest
@@ -871,19 +860,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      # - name: Set IP variables
-      #   run: |
-      #     # Check if environment variables are available and set effective values if not.
-      #     if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
-      #       echo "Using fallback IP addresses"
-      #       echo "EFFECTIVE_APP_IP=10.0.2.4" >> $GITHUB_ENV
-      #       echo "EFFECTIVE_BASTION_IP=137.116.232.168" >> $GITHUB_ENV
-      #     else
-      #       echo "Using outputs from infrastructure deployment"
-      #       echo "EFFECTIVE_APP_IP=${{ env.APP_IP }}" >> $GITHUB_ENV
-      #       echo "EFFECTIVE_BASTION_IP=${{ env.BASTION_IP }}" >> $GITHUB_ENV
-      #     fi
 
       # Use the SSH setup action.
       - name: Set up SSH keys
