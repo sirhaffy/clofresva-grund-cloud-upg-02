@@ -790,7 +790,7 @@ jobs:
   # Deploy the artifact to the app server.
   deploy-to-server:
     name: Deploy Artifact to App-Server
-    needs: deploy-app
+    needs: [deploy-app, get-infrastructure-info, deploy-infrastructure]  # Inkludera alla relevanta jobb
     if: always() && needs.deploy-app.result == 'success'
     runs-on: ubuntu-latest
     env:
