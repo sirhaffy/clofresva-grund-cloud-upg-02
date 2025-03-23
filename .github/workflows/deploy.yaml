@@ -218,9 +218,9 @@ jobs:
   # New job to get infrastructure info if we don't need to deploy infrastructure
   get-infrastructure-info:
     name: Get Existing Infrastructure Info
-    needs: check-changes
 
-    if: ${{ needs.check-changes.outputs.run_bicep == 'false' && (needs.check-changes.outputs.run_ansible == 'true' || needs.check-changes.outputs.run_webapp == 'true') }}
+    needs: check-changes
+    if: ${{ (needs.check-changes.outputs.run_bicep == 'false') && (needs.check-changes.outputs.run_ansible == 'true' || needs.check-changes.outputs.run_webapp == 'true') }}
 
     runs-on: ubuntu-latest
     outputs:
@@ -377,8 +377,8 @@ jobs:
 
   deploy-infrastructure:
     name: Deploy Azure Infrastructure
-    needs: check-changes
 
+    needs: check-changes
     if: ${{ needs.check-changes.outputs.run_bicep == 'true' }}
 
     runs-on: ubuntu-latest
