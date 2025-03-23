@@ -733,7 +733,7 @@ jobs:
   # Build and deploy the dotnet app as an artifact and upload, if files were changed.
   deploy-app:
     name: Deploy Application as Artifact
-    needs: [check-changes, deploy-infrastructure, get-infrastructure-info, configure-servers]
+    needs: [check-changes, deploy-infrastructure, get-infrastructure-info]
     # 'always' - Evaluate the job even if previous jobs fail
     if: >
       ${{ always() &&
