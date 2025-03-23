@@ -30,8 +30,6 @@ env:
   RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
   LOCATION: northeurope
   REPO_NAME: ${{ secrets.REPO_NAME }}
-  ACTIONS_RUNNER_DEBUG: true
-  ACTIONS_STEP_DEBUG: true
 
 jobs:
 
@@ -113,11 +111,11 @@ jobs:
             done
           done < changed_files.txt
 
-          echo "DEBUG: Checking webapp patterns matching..."
-          for pattern in $WEBAPP_PATTERNS; do
-            echo "  Pattern: $pattern"
-            grep -E "$pattern" changed_files.txt || echo "  No matches for this pattern"
-          done
+          # echo "DEBUG: Checking webapp patterns matching..."
+          # for pattern in $WEBAPP_PATTERNS; do
+          #   echo "  Pattern: $pattern"
+          #   grep -E "$pattern" changed_files.txt || echo "  No matches for this pattern"
+          # done
 
           # Sätt outputs baserat på ändringar
           echo "run_bicep=$bicep_changes" >> $GITHUB_OUTPUT
@@ -149,13 +147,13 @@ jobs:
           echo -e "$summary"
           echo "================================================================="
 
-      - name: Debug outputs
-        run: |
-          echo "Final output values:"
-          echo "run_bicep=${{ steps.check_files.outputs.run_bicep }}"
-          echo "run_ansible=${{ steps.check_files.outputs.run_ansible }}"
-          echo "run_webapp=${{ steps.check_files.outputs.run_webapp }}"
-          echo "changes_detected=${{ steps.check_files.outputs.changes_detected }}"
+      # - name: Debug outputs
+      #   run: |
+      #     echo "Final output values:"
+      #     echo "run_bicep=${{ steps.check_files.outputs.run_bicep }}"
+      #     echo "run_ansible=${{ steps.check_files.outputs.run_ansible }}"
+      #     echo "run_webapp=${{ steps.check_files.outputs.run_webapp }}"
+      #     echo "changes_detected=${{ steps.check_files.outputs.changes_detected }}"
 
 
 
@@ -209,8 +207,8 @@ jobs:
           echo "::add-mask::$TOKEN"
 
           # Check if the token is available.
-          echo "Debug: Runner token"
-          echo "PAT token available: ${{ secrets.PAT_TOKEN != '' }}"
+          # echo "Debug: Runner token"
+          # echo "PAT token available: ${{ secrets.PAT_TOKEN != '' }}"
           echo "Runner token available: $([[ -n "$TOKEN" ]] && echo "Yes" || echo "No")"
           echo "REPO_NAME: ${{ env.REPO_NAME }}"
 
@@ -308,11 +306,11 @@ jobs:
           fi
 
           # Debug: Print the outputs
-          echo "Outputs som sätts för nästa jobb:"
-          echo "BASTION_IP: $(cat $GITHUB_OUTPUT | grep BASTION_IP)"
-          echo "APP_IP: $(cat $GITHUB_OUTPUT | grep APP_IP)"
-          echo "STORAGE_ACCOUNT: $(cat $GITHUB_OUTPUT | grep STORAGE_ACCOUNT)"
-          echo "BLOB_ENDPOINT: $(cat $GITHUB_OUTPUT | grep BLOB_ENDPOINT)"
+          # echo "Outputs som sätts för nästa jobb:"
+          # echo "BASTION_IP: $(cat $GITHUB_OUTPUT | grep BASTION_IP)"
+          # echo "APP_IP: $(cat $GITHUB_OUTPUT | grep APP_IP)"
+          # echo "STORAGE_ACCOUNT: $(cat $GITHUB_OUTPUT | grep STORAGE_ACCOUNT)"
+          # echo "BLOB_ENDPOINT: $(cat $GITHUB_OUTPUT | grep BLOB_ENDPOINT)"
 
 
 
@@ -372,10 +370,10 @@ jobs:
           echo "::add-mask::$TOKEN"
 
           # Check if the token is available.
-          echo "Debug: Runner token"
-          echo "PAT token available: ${{ secrets.PAT_TOKEN != '' }}"
-          echo "Runner token available: $([[ -n "$TOKEN" ]] && echo "Yes" || echo "No")"
-          echo "REPO_NAME: ${{ env.REPO_NAME }}"
+          # echo "Debug: Runner token"
+          # echo "PAT token available: ${{ secrets.PAT_TOKEN != '' }}"
+          # echo "Runner token available: $([[ -n "$TOKEN" ]] && echo "Yes" || echo "No")"
+          # echo "REPO_NAME: ${{ env.REPO_NAME }}"
 
       # Deploy the infrastructure using Bicep
       - name: Deploy Infrastructure
@@ -408,7 +406,7 @@ jobs:
           echo "Bastion IP available: $([[ -n "$BASTION_IP" ]] && echo "Yes" || echo "No")"
 
           # Debug: Print the Bastion IP
-          echo "Bastion IP: $BASTION_IP"
+          # echo "Bastion IP: $BASTION_IP"
 
           echo "Getting App server IP..."
           APP_IP=$(az deployment group show \
@@ -421,7 +419,7 @@ jobs:
           echo "App IP available: $([[ -n "$APP_IP" ]] && echo "Yes" || echo "No")"
 
           # Debug: Print the App IP
-          echo "App IP: $APP_IP"
+          # echo "App IP: $APP_IP"
 
           echo "Getting MongoDB connection string..."
           MONGODB_CONNECTION_STRING=$(az deployment group show \
@@ -431,18 +429,18 @@ jobs:
             --output tsv)
 
           # debug: Print the MongoDB connection string
-          echo "Available outputs:"
-            az deployment group show \
-              --resource-group ${{ env.RESOURCE_GROUP }} \
-              --name main \
-              --query "properties.outputs" \
-              --output json
+          # echo "Available outputs:"
+          #   az deployment group show \
+          #     --resource-group ${{ env.RESOURCE_GROUP }} \
+          #     --name main \
+          #     --query "properties.outputs" \
+          #     --output json
 
           # Check if the connection string is available
           echo "Connection string available: $([[ -n "$MONGODB_CONNECTION_STRING" ]] && echo "Yes" || echo "No")"
 
           # Debug: Print the MongoDB connection string
-          echo "MongoDB connection string: $MONGODB_CONNECTION_STRING"
+          # echo "MongoDB connection string: $MONGODB_CONNECTION_STRING"
 
           echo "Getting storage account name..."
           STORAGE_ACCOUNT=$(az deployment group show \
@@ -455,7 +453,7 @@ jobs:
           echo "Storage account available: $([[ -n "$STORAGE_ACCOUNT" ]] && echo "Yes" || echo "No")"
 
           # Debug: Print the storage account name
-          echo "Storage account: $STORAGE_ACCOUNT"
+          # echo "Storage account: $STORAGE_ACCOUNT"
 
           echo "Getting blob endpoint..."
           BLOB_ENDPOINT=$(az deployment group show \
@@ -468,7 +466,7 @@ jobs:
           echo "Blob endpoint available: $([[ -n "$BLOB_ENDPOINT" ]] && echo "Yes" || echo "No")"
 
           # Debug: Print the Blob endpoint
-          echo "Blob endpoint: $BLOB_ENDPOINT"
+          # echo "Blob endpoint: $BLOB_ENDPOINT"
 
           # Output the values to the console.
           # echo "Bastion IP: $BASTION_IP"
@@ -512,8 +510,8 @@ jobs:
           echo "ANSIBLE_CONFIG=./ansible/ansible.cfg" >> $GITHUB_ENV
 
           # Debug directory structure
-          echo "Directory structure:"
-          find ./ansible -type d | sort
+          # echo "Directory structure:"
+          # find ./ansible -type d | sort
 
       - name: Test SSH connectivity
         run: |
@@ -568,20 +566,20 @@ jobs:
         with:
           ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Debug environment variables
-        run: |
-          echo "Environment variables:"
-          echo "BASTION_IP: ${{ env.BASTION_IP }}"
-          echo "APP_IP: ${{ env.APP_IP }}"
-          echo "PROJECT_NAME: ${{ env.PROJECT_NAME }}"
-          echo "STORAGE_ACCOUNT: ${{ env.STORAGE_ACCOUNT }}"
-          echo "BLOB_ENDPOINT: ${{ env.BLOB_ENDPOINT }}"
-          echo "REPO_NAME: ${{ env.REPO_NAME }}"
-          echo "RUNNER_TOKEN available: ${{ env.RUNNER_TOKEN != '' }}"
-          echo "RUNNER_TOKEN length: ${#RUNNER_TOKEN}"
+      # - name: Debug environment variables
+      #   run: |
+      #     echo "Environment variables:"
+      #     echo "BASTION_IP: ${{ env.BASTION_IP }}"
+      #     echo "APP_IP: ${{ env.APP_IP }}"
+      #     echo "PROJECT_NAME: ${{ env.PROJECT_NAME }}"
+      #     echo "STORAGE_ACCOUNT: ${{ env.STORAGE_ACCOUNT }}"
+      #     echo "BLOB_ENDPOINT: ${{ env.BLOB_ENDPOINT }}"
+      #     echo "REPO_NAME: ${{ env.REPO_NAME }}"
+      #     echo "RUNNER_TOKEN available: ${{ env.RUNNER_TOKEN != '' }}"
+      #     echo "RUNNER_TOKEN length: ${#RUNNER_TOKEN}"
 
-          echo "RUNNER_TOKEN from output: ${{ needs.deploy-infrastructure.outputs.RUNNER_TOKEN != '' }}"
-          echo "RUNNER_TOKEN from env: $([[ -n \"$RUNNER_TOKEN\" ]] && echo 'Yes' || echo 'No')"
+      #     echo "RUNNER_TOKEN from output: ${{ needs.deploy-infrastructure.outputs.RUNNER_TOKEN != '' }}"
+      #     echo "RUNNER_TOKEN from env: $([[ -n \"$RUNNER_TOKEN\" ]] && echo 'Yes' || echo 'No')"
 
       - name: Ensure Ansible config exists
         run: |
@@ -594,8 +592,8 @@ jobs:
           echo "ANSIBLE_CONFIG=./ansible/ansible.cfg" >> $GITHUB_ENV
 
           # Debug directory structure
-          echo "Directory structure:"
-          find ./ansible -type d | sort
+          # echo "Directory structure:"
+          # find ./ansible -type d | sort
 
       - name: Test SSH connectivity
         run: |
@@ -658,8 +656,8 @@ jobs:
           echo "    mongodb_connection_string_base64: ${{ env.MONGODB_CONNECTION_STRING_B64 }}" >> ./ansible/inventories/azure_rm.yaml
 
           # Debug - visa inventory med maskerat token
-          echo "Generated inventory file (sensitive data masked):"
-          cat ./ansible/inventories/azure_rm.yaml | sed 's/github_runner_token: .*/github_runner_token: ***/' | sed 's/mongodb_connection_string_base64: .*/mongodb_connection_string_base64: ***/'
+          # echo "Generated inventory file (sensitive data masked):"
+          # cat ./ansible/inventories/azure_rm.yaml | sed 's/github_runner_token: .*/github_runner_token: ***/' | sed 's/mongodb_connection_string_base64: .*/mongodb_connection_string_base64: ***/'
 
           echo "Waiting for SSH to be available..."
           sleep 30
@@ -673,46 +671,6 @@ jobs:
             echo "ansible_failed=false" >> $GITHUB_ENV
           fi
         continue-on-error: true # Continue even if Ansible fails
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  debug-detailed:
-    name: Debug Detailed Output Values
-    needs: [check-changes, deploy-infrastructure, get-infrastructure-info]
-    runs-on: ubuntu-latest
-    if: always()
-    steps:
-      - name: Debug all outputs in detail
-        run: |
-          echo "check-changes outputs:"
-          echo "run_webapp: '${{ needs.check-changes.outputs.run_webapp }}'"
-          RUN_WEBAPP="${{ needs.check-changes.outputs.run_webapp }}"
-          echo "run_webapp (length): ${#RUN_WEBAPP}"
-          echo "run_webapp with quotes: \"$RUN_WEBAPP\""
-          echo "Exact comparison with 'true': ${{ needs.check-changes.outputs.run_webapp == 'true' }}"
-
-          echo "deploy-infrastructure result: '${{ needs.deploy-infrastructure.result }}'"
-          echo "Comparison with 'success': ${{ needs.deploy-infrastructure.result == 'success' }}"
-          echo "Comparison with 'skipped': ${{ needs.deploy-infrastructure.result == 'skipped' }}"
-
-          echo "get-infrastructure-info result: '${{ needs.get-infrastructure-info.result }}'"
-          echo "Comparison with 'success': ${{ needs.get-infrastructure-info.result == 'success' }}"
-
-          echo "Full condition evaluation:"
-          echo "${{ needs.check-changes.outputs.run_webapp == 'true' &&
-            (needs.deploy-infrastructure.result == 'success' ||
-            (needs.deploy-infrastructure.result == 'skipped' && needs.get-infrastructure-info.result == 'success')) }}"
 
 
 
@@ -872,29 +830,29 @@ jobs:
         with:
           ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Debug SSH configuration
-        run: |
-          echo "SSH directory contents:"
-          ls -la ~/.ssh/
+      # - name: Debug SSH configuration
+      #   run: |
+      #     echo "SSH directory contents:"
+      #     ls -la ~/.ssh/
 
-          echo "SSH config file:"
-          cat ~/.ssh/config
+      #     echo "SSH config file:"
+      #     cat ~/.ssh/config
 
-          # Check if environment variables are available
-          if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
-            echo "WARNING: IP addresses not set. Using hardcoded values."
-            APP_IP="10.0.2.4"
-            BASTION_IP="137.116.232.168"
-          else
-            APP_IP="${{ env.APP_IP }}"
-            BASTION_IP="${{ env.BASTION_IP }}"
-          fi
+      #     # Check if environment variables are available
+      #     if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
+      #       echo "WARNING: IP addresses not set. Using hardcoded values."
+      #       APP_IP="10.0.2.4"
+      #       BASTION_IP="137.116.232.168"
+      #     else
+      #       APP_IP="${{ env.APP_IP }}"
+      #       BASTION_IP="${{ env.BASTION_IP }}"
+      #     fi
 
-          echo "Testing SSH connectivity:"
-          echo "Bastion IP: $BASTION_IP"
-          ssh -v -i ~/.ssh/clofresva_gc_upg02_azure_key \
-            azureuser@$BASTION_IP \
-            "echo 'Connected to Bastion'" || echo "Failed to connect to Bastion"
+      #     echo "Testing SSH connectivity:"
+      #     echo "Bastion IP: $BASTION_IP"
+      #     ssh -v -i ~/.ssh/clofresva_gc_upg02_azure_key \
+      #       azureuser@$BASTION_IP \
+      #       "echo 'Connected to Bastion'" || echo "Failed to connect to Bastion"
 
       - name: Download App Artifact
         uses: actions/download-artifact@v4
@@ -989,56 +947,56 @@ jobs:
             echo 'Application deployed!'
           "
 
-      - name: Verify server configuration
-        run: |
-          echo "Debug miljövariabler:"
-          echo "BASTION_IP: ${{ env.BASTION_IP }}"
-          echo "APP_IP: ${{ env.APP_IP }}"
+      # - name: Verify server configuration
+      #   run: |
+      #     echo "Debug miljövariabler:"
+      #     echo "BASTION_IP: ${{ env.BASTION_IP }}"
+      #     echo "APP_IP: ${{ env.APP_IP }}"
 
-          if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
-            echo "ERROR: IP-adresser saknas. Kan inte fortsätta utan korrekt infrastrukturdata."
-            exit 1
-          fi
+      #     if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
+      #       echo "ERROR: IP-adresser saknas. Kan inte fortsätta utan korrekt infrastrukturdata."
+      #       exit 1
+      #     fi
 
-          echo "Verifierar serverkonfiguration..."
-          ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@${{ env.BASTION_IP }}" -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@${{ env.APP_IP }} "
-            echo 'Kontrollerar serverkonfiguration...'
+      #     echo "Verifierar serverkonfiguration..."
+      #     ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@${{ env.BASTION_IP }}" -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@${{ env.APP_IP }} "
+      #       echo 'Kontrollerar serverkonfiguration...'
 
-            if [ ! -f /var/www/app/appsettings.json ]; then
-              echo 'ERROR: appsettings.json saknas helt!'
-              exit 0
-            fi
+      #       if [ ! -f /var/www/app/appsettings.json ]; then
+      #         echo 'ERROR: appsettings.json saknas helt!'
+      #         exit 0
+      #       fi
 
-            if grep -q '{accountname}' /var/www/app/appsettings.json; then
-              echo 'VARNING: Standardplaceholders upptäckta i appsettings.json, försöker återställa från mall'
+      #       if grep -q '{accountname}' /var/www/app/appsettings.json; then
+      #         echo 'VARNING: Standardplaceholders upptäckta i appsettings.json, försöker återställa från mall'
 
-              if [ -f /var/www/app/appsettings-temp.json ]; then
-                echo 'Hittade en temporär appsettings fil, använder den'
-                sudo mv /var/www/app/appsettings-temp.json /var/www/app/appsettings.json
-                sudo chown www-data:www-data /var/www/app/appsettings.json
-              else
-                echo 'Ingen temporär fil, kör Ansible för att skapa en'
-                sudo ansible-playbook -i /etc/ansible/inventories/local.yaml /etc/ansible/playbooks/restore-config.yaml || echo 'Ansible misslyckades'
+      #         if [ -f /var/www/app/appsettings-temp.json ]; then
+      #           echo 'Hittade en temporär appsettings fil, använder den'
+      #           sudo mv /var/www/app/appsettings-temp.json /var/www/app/appsettings.json
+      #           sudo chown www-data:www-data /var/www/app/appsettings.json
+      #         else
+      #           echo 'Ingen temporär fil, kör Ansible för att skapa en'
+      #           sudo ansible-playbook -i /etc/ansible/inventories/local.yaml /etc/ansible/playbooks/restore-config.yaml || echo 'Ansible misslyckades'
 
-                if [ -f /var/www/app/appsettings-temp.json ]; then
-                  echo 'Flyttar temporär appsettings fil till slutlig plats'
-                  sudo mv /var/www/app/appsettings-temp.json /var/www/app/appsettings.json
-                  sudo chown www-data:www-data /var/www/app/appsettings.json
-                fi
-              fi
+      #           if [ -f /var/www/app/appsettings-temp.json ]; then
+      #             echo 'Flyttar temporär appsettings fil till slutlig plats'
+      #             sudo mv /var/www/app/appsettings-temp.json /var/www/app/appsettings.json
+      #             sudo chown www-data:www-data /var/www/app/appsettings.json
+      #           fi
+      #         fi
 
-              # Verifiera efter försök till åtgärd
-              if grep -q '{accountname}' /var/www/app/appsettings.json; then
-                echo 'ERROR: Kunde fortfarande inte ersätta placeholders!'
-                cat /var/www/app/appsettings.json || echo 'Kunde inte visa innehåll'
-              else
-                echo 'Framgångsrikt återställt konfiguration'
-                echo 'Startar om tjänsten för att tillämpa nya inställningar'
-                sudo systemctl restart webapp.service
-              fi
-            else
-              echo 'Serverkonfiguration ser korrekt ut, kontrollerar innehåll (känslig data maskerad):'
-              grep -v 'ConnectionString' /var/www/app/appsettings.json || echo 'Kunde inte visa innehåll'
-            fi
-          "
+      #         # Verifiera efter försök till åtgärd
+      #         if grep -q '{accountname}' /var/www/app/appsettings.json; then
+      #           echo 'ERROR: Kunde fortfarande inte ersätta placeholders!'
+      #           cat /var/www/app/appsettings.json || echo 'Kunde inte visa innehåll'
+      #         else
+      #           echo 'Framgångsrikt återställt konfiguration'
+      #           echo 'Startar om tjänsten för att tillämpa nya inställningar'
+      #           sudo systemctl restart webapp.service
+      #         fi
+      #       else
+      #         echo 'Serverkonfiguration ser korrekt ut, kontrollerar innehåll (känslig data maskerad):'
+      #         grep -v 'ConnectionString' /var/www/app/appsettings.json || echo 'Kunde inte visa innehåll'
+      #       fi
+      #     "
         continue-on-error: true
