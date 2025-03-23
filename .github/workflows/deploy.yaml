@@ -665,6 +665,35 @@ jobs:
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+  debug-app-conditions:
+    name: Debug App Deployment Conditions
+    needs: [check-changes, deploy-infrastructure, get-infrastructure-info]
+    runs-on: ubuntu-latest
+    if: always()  # Kör alltid oavsett resultat av tidigare jobb
+    steps:
+      - name: Debug conditions
+        run: |
+          echo "check-changes.result: ${{ needs.check-changes.result }}"
+          echo "deploy-infrastructure.result: ${{ needs.deploy-infrastructure.result }}"
+          echo "get-infrastructure-info.result: ${{ needs.get-infrastructure-info.result }}"
+
+          echo "run_webapp: '${{ needs.check-changes.outputs.run_webapp }}'"
+
+          echo "Deploy App Condition: ${{ needs.check-changes.outputs.run_webapp == 'true' && (needs.deploy-infrastructure.result == 'success' || (needs.deploy-infrastructure.result == 'skipped' && needs.get-infrastructure-info.result == 'success')) }}"
+
+
+
   # ===========================================================================================
   # =============================Deploy Application as Artifact===============================
   # ===========================================================================================
