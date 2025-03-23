@@ -708,8 +708,7 @@ jobs:
   deploy-app:
     name: Deploy Application as Artifact
     needs: [check-changes, deploy-infrastructure, get-infrastructure-info]
-    if: >
-      ${{ needs.check-changes.outputs.run_webapp == 'true' }}
+    if: true
     runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
