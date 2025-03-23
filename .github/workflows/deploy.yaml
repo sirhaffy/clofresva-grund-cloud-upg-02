@@ -140,12 +140,14 @@ jobs:
 
           # Determine if any changes were detected.
           changes_detected=$([ "$bicep_changes" = "true" ] || [ "$ansible_changes" = "true" ] || [ "$webapp_changes" = "true" ] && echo "true" || echo "false")
-          echo "changes_detected=$changes_detected" >> $GITHUB_OUTPUT
 
-          if [ "$bicep_changes" = "true" ] && (grep -q "mongodb" changed_files.txt || grep -q "cosmos" changed_files.txt); then
-            ansible_changes=true
-            echo "MongoDB/CosmosDB changes detected, will run Ansible"
+          # Don't consider workflow file changes as "detected changes" for infrastructure purposes
+          if [ "$changes_detected" = "false" ] && grep -q "\.github/workflows/" changed_files.txt; then
+            echo "Only workflow files changed, not triggering infrastructure jobs"
+            changes_detected="false"
           fi
+
+          echo "changes_detected=$changes_detected" >> $GITHUB_OUTPUT
 
           # Create a change summary.
           summary="Changes detected:\n"
@@ -162,49 +164,49 @@ jobs:
           # List the changed files.
           cat changed_files.txt
 
-      - name: Debug changes
-        run: |
-          echo "Files changed that caused infrastructure updates:"
-          grep -E "infrastructure/|bicep/|\.bicep$" changed_files.txt || echo "No matching infrastructure files"
+      # - name: Debug changes
+      #   run: |
+      #     echo "Files changed that caused infrastructure updates:"
+      #     grep -E "infrastructure/|bicep/|\.bicep$" changed_files.txt || echo "No matching infrastructure files"
 
-          echo "Files changed that caused ansible updates:"
-          grep -E "ansible/|playbooks/|roles/|templates/|mongodb|cosmos" changed_files.txt || echo "No matching ansible files"
+      #     echo "Files changed that caused ansible updates:"
+      #     grep -E "ansible/|playbooks/|roles/|templates/|mongodb|cosmos" changed_files.txt || echo "No matching ansible files"
 
-          echo "Files changed that caused webapp updates:"
-          echo "  .cs files:"
-          grep -i "\.cs" changed_files.txt | while read -r file; do
-            echo "  - $file"
-          done || echo "  No matching .cs files"
+      #     echo "Files changed that caused webapp updates:"
+      #     echo "  .cs files:"
+      #     grep -i "\.cs" changed_files.txt | while read -r file; do
+      #       echo "  - $file"
+      #     done || echo "  No matching .cs files"
 
-          echo "  .csproj files:"
-          grep -i "\.csproj" changed_files.txt | while read -r file; do
-            echo "  - $file"
-          done || echo "  No matching .csproj files"
+      #     echo "  .csproj files:"
+      #     grep -i "\.csproj" changed_files.txt | while read -r file; do
+      #       echo "  - $file"
+      #     done || echo "  No matching .csproj files"
 
-          echo "  WebbApp directory:"
-          grep -i "WebbApp" changed_files.txt | while read -r file; do
-            echo "  - $file"
-          done || echo "  No matching WebbApp directory files"
+      #     echo "  WebbApp directory:"
+      #     grep -i "WebbApp" changed_files.txt | while read -r file; do
+      #       echo "  - $file"
+      #     done || echo "  No matching WebbApp directory files"
 
-          echo "  wwwroot directory:"
-          grep -i "wwwroot" changed_files.txt | while read -r file; do
-            echo "  - $file"
-          done || echo "  No matching wwwroot directory files"
+      #     echo "  wwwroot directory:"
+      #     grep -i "wwwroot" changed_files.txt | while read -r file; do
+      #       echo "  - $file"
+      #     done || echo "  No matching wwwroot directory files"
 
-          echo "  Controllers directory:"
-          grep -i "Controllers" changed_files.txt | while read -r file; do
-            echo "  - $file"
-          done || echo "  No matching Controllers directory files"
+      #     echo "  Controllers directory:"
+      #     grep -i "Controllers" changed_files.txt | while read -r file; do
+      #       echo "  - $file"
+      #     done || echo "  No matching Controllers directory files"
 
-          echo "  Views directory:"
-          grep -i "Views" changed_files.txt | while read -r file; do
-            echo "  - $file"
-          done || echo "  No matching Views directory files"
+      #     echo "  Views directory:"
+      #     grep -i "Views" changed_files.txt | while read -r file; do
+      #       echo "  - $file"
+      #     done || echo "  No matching Views directory files"
 
-          echo "  Models directory:"
-          grep -i "Models" changed_files.txt | while read -r file; do
-            echo "  - $file"
-          done || echo "  No matching Models directory files."
+      #     echo "  Models directory:"
+      #     grep -i "Models" changed_files.txt | while read -r file; do
+      #       echo "  - $file"
+      #     done || echo "  No matching Models directory files."
 
 
 
@@ -223,7 +225,8 @@ jobs:
       ${{ needs.check-changes.result == 'success' &&
       needs.check-changes.outputs.run_bicep != 'true' &&
       (needs.check-changes.outputs.run_ansible == 'true' ||
-      needs.check-changes.outputs.run_webapp == 'true') }}
+      needs.check-changes.outputs.run_webapp == 'true' ||
+      needs.check-changes.outputs.changes_detected == 'true') }}
     runs-on: ubuntu-latest
     outputs:
       BASTION_IP: ${{ steps.get_infrastructure_data.outputs.BASTION_IP }}
