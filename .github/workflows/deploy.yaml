@@ -25,6 +25,8 @@ env:
   RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
   LOCATION: northeurope
   REPO_NAME: ${{ secrets.REPO_NAME }}
+  ACTIONS_RUNNER_DEBUG: true
+  ACTIONS_STEP_DEBUG: true
 
 jobs:
 
@@ -674,21 +676,31 @@ jobs:
 
 
 
-  debug-app-conditions:
-    name: Debug App Deployment Conditions
+  debug-detailed:
+    name: Debug Detailed Output Values
     needs: [check-changes, deploy-infrastructure, get-infrastructure-info]
     runs-on: ubuntu-latest
-    if: always()  # Kör alltid oavsett resultat av tidigare jobb
+    if: always()
     steps:
-      - name: Debug conditions
+      - name: Debug all outputs in detail
         run: |
-          echo "check-changes.result: ${{ needs.check-changes.result }}"
-          echo "deploy-infrastructure.result: ${{ needs.deploy-infrastructure.result }}"
-          echo "get-infrastructure-info.result: ${{ needs.get-infrastructure-info.result }}"
-
+          echo "check-changes outputs:"
           echo "run_webapp: '${{ needs.check-changes.outputs.run_webapp }}'"
+          echo "run_webapp (length): ${#'${{ needs.check-changes.outputs.run_webapp }}'}"
+          echo "run_webapp with quotes: '\"${{ needs.check-changes.outputs.run_webapp }}\"'"
+          echo "Exact comparison with 'true': ${{ needs.check-changes.outputs.run_webapp == 'true' }}"
 
-          echo "Deploy App Condition: ${{ needs.check-changes.outputs.run_webapp == 'true' && (needs.deploy-infrastructure.result == 'success' || (needs.deploy-infrastructure.result == 'skipped' && needs.get-infrastructure-info.result == 'success')) }}"
+          echo "deploy-infrastructure result: '${{ needs.deploy-infrastructure.result }}'"
+          echo "Comparison with 'success': ${{ needs.deploy-infrastructure.result == 'success' }}"
+          echo "Comparison with 'skipped': ${{ needs.deploy-infrastructure.result == 'skipped' }}"
+
+          echo "get-infrastructure-info result: '${{ needs.get-infrastructure-info.result }}'"
+          echo "Comparison with 'success': ${{ needs.get-infrastructure-info.result == 'success' }}"
+
+          echo "Full condition evaluation:"
+          echo "${{ needs.check-changes.outputs.run_webapp == 'true' &&
+            (needs.deploy-infrastructure.result == 'success' ||
+            (needs.deploy-infrastructure.result == 'skipped' && needs.get-infrastructure-info.result == 'success')) }}"
 
 
 
@@ -696,19 +708,15 @@ jobs:
   # =============================Deploy Application as Artifact===============================
   # ===========================================================================================
 
-# Run echo "check-changes.result: success"
-# check-changes.result: success
-# deploy-infrastructure.result: skipped
-# get-infrastructure-info.result: success
-# run_webapp: 'true'
-# Deploy App Condition: true
 
 
   # Build and deploy the dotnet app as an artifact and upload, if files were changed.
   deploy-app:
     name: Deploy Application as Artifact
     needs: [check-changes, deploy-infrastructure, get-infrastructure-info]
+
     if: ${{ needs.check-changes.outputs.run_webapp == 'true' && (needs.deploy-infrastructure.result == 'success' || (needs.deploy-infrastructure.result == 'skipped' && needs.get-infrastructure-info.result == 'success')) }}
+
     runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
