@@ -49,164 +49,86 @@ jobs:
       - name: Check changed files
         id: check_files
         run: |
-          # Check if this is a manual trigger (workflow_dispatch).
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            if [[ "${{ github.event.inputs.full_deployment }}" == "true" ]]; then
-              echo "Manual workflow run - will execute all steps"
-              echo "run_bicep=true" >> $GITHUB_OUTPUT
-              echo "run_ansible=true" >> $GITHUB_OUTPUT
-              echo "run_webapp=true" >> $GITHUB_OUTPUT
-              echo "changes_detected=true" >> $GITHUB_OUTPUT
-              echo "change_summary=Manual trigger: Running all deployment steps" >> $GITHUB_OUTPUT
-              exit 0
-            fi
+          # Hantera manuella körningar först
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.full_deployment }}" == "true" ]]; then
+            echo "Manuell körning - kör alla steg"
+            echo "run_bicep=true" >> $GITHUB_OUTPUT
+            echo "run_ansible=true" >> $GITHUB_OUTPUT
+            echo "run_webapp=true" >> $GITHUB_OUTPUT
+            echo "changes_detected=true" >> $GITHUB_OUTPUT
+            echo "change_summary=Manuell trigger: Kör alla deployment-steg" >> $GITHUB_OUTPUT
+            exit 0
           fi
 
-          # For push/PR events, check what files changed.
+          # Hämta ändrade filer
           git diff --name-only HEAD^ HEAD > changed_files.txt
-
-          # Debug - show what files are changed
-          echo "List of changed files:"
+          echo "Ändrade filer:"
           cat changed_files.txt
 
-          # Initialize change flags.
+          # Definiera mönster för olika ändringstyper
+          BICEP_PATTERNS="infrastructure/ bicep/ \.bicep$"
+          ANSIBLE_PATTERNS="ansible/ playbooks/ roles/ templates/ mongodb cosmos"
+          WEBAPP_PATTERNS="\.cs$ \.csproj$ WebbApp/ wwwroot/ Controllers/ Views/ Models/"
+
+          # Initiera flaggor till false
           bicep_changes=false
           ansible_changes=false
           webapp_changes=false
 
-          # Check for infrastructure changes.
-          if grep -q "infrastructure/" changed_files.txt || \
-            grep -q "bicep/" changed_files.txt || \
-            grep -q "\.bicep$" changed_files.txt; then
-            bicep_changes=true
-          fi
+          # Kontrollera ändringar med en loop genom filerna
+          while IFS= read -r file; do
+            # För varje kategori, kolla om filen matchar något mönster
+            for pattern in $BICEP_PATTERNS; do
+              if [[ "$file" =~ $pattern ]]; then
+                bicep_changes=true
+                break
+              fi
+            done
 
-          # Check for Ansible changes.
-          if grep -q "ansible/" changed_files.txt || \
-            grep -q "playbooks/" changed_files.txt || \
-            grep -q "roles/" changed_files.txt || \
-            grep -q "templates/" changed_files.txt || \
-            grep -q "mongodb" changed_files.txt || \
-            grep -q "cosmos" changed_files.txt; then
-            ansible_changes=true
-          fi
+            for pattern in $ANSIBLE_PATTERNS; do
+              if [[ "$file" =~ $pattern ]]; then
+                ansible_changes=true
+                break
+              fi
+            done
 
-          # Check for webapp changes and show what we find
-          echo "Checking for webapp related changes..."
+            for pattern in $WEBAPP_PATTERNS; do
+              if [[ "$file" =~ $pattern ]]; then
+                webapp_changes=true
+                break
+              fi
+            done
+          done < changed_files.txt
 
-          # Check for specific webapp files and show what we find
-          if grep -i "\.cs" changed_files.txt; then
-            echo "Found .cs file changes"
-            webapp_changes=true
-          fi
-
-          if grep -i "\.csproj" changed_files.txt; then
-            echo "Found .csproj file changes"
-            webapp_changes=true
-          fi
-
-          if grep -i "WebbApp" changed_files.txt; then
-            echo "Found WebbApp directory changes"
-            webapp_changes=true
-          fi
-
-          if grep -i "wwwroot" changed_files.txt; then
-            echo "Found wwwroot directory changes"
-            webapp_changes=true
-          fi
-
-          if grep -i "Controllers" changed_files.txt; then
-            echo "Found Controllers directory changes"
-            webapp_changes=true
-          fi
-
-          if grep -i "Views" changed_files.txt; then
-            echo "Found Views directory changes"
-            webapp_changes=true
-          fi
-
-          if grep -i "Models" changed_files.txt; then
-            echo "Found Models directory changes"
-            webapp_changes=true
-          fi
-
-          # Print the final status
-          echo "Final webapp_changes status: $webapp_changes"
-
-          # Set outputs based on changes.
+          # Sätt outputs baserat på ändringar
           echo "run_bicep=$bicep_changes" >> $GITHUB_OUTPUT
           echo "run_ansible=$ansible_changes" >> $GITHUB_OUTPUT
           echo "run_webapp=$webapp_changes" >> $GITHUB_OUTPUT
 
-          # Determine if any changes were detected.
-          changes_detected=$([ "$bicep_changes" = "true" ] || [ "$ansible_changes" = "true" ] || [ "$webapp_changes" = "true" ] && echo "true" || echo "false")
-
-          # Don't consider workflow file changes as "detected changes" for infrastructure purposes
-          if [ "$changes_detected" = "false" ] && grep -q "\.github/workflows/" changed_files.txt; then
-            echo "Only workflow files changed, not triggering infrastructure jobs"
-            changes_detected="false"
+          # Bestäm om några ändringar upptäcktes
+          if [[ "$bicep_changes" == "true" || "$ansible_changes" == "true" || "$webapp_changes" == "true" ]]; then
+            changes_detected=true
+          else
+            changes_detected=false
+            # Ignorera om bara workflow-filer ändrats
+            if grep -q "\.github/workflows/" changed_files.txt; then
+              echo "Bara workflow-filer ändrades, kör inte infrastrukturjobb"
+            fi
           fi
 
           echo "changes_detected=$changes_detected" >> $GITHUB_OUTPUT
 
-          # Create a change summary.
-          summary="Changes detected:\n"
-          summary+="  Infrastructure: $bicep_changes\n"
-          summary+="  Configuration: $ansible_changes\n"
-          summary+="  Web Application: $webapp_changes\n"
+          # Skapa sammanfattning
+          summary="Ändringar upptäckta:\n"
+          summary+="  Infrastruktur: $bicep_changes\n"
+          summary+="  Konfiguration: $ansible_changes\n"
+          summary+="  Webbapplikation: $webapp_changes\n"
           echo "change_summary=$summary" >> $GITHUB_OUTPUT
 
-          # Echo the changes for the log
-          echo "==================== CHANGE DETECTION SUMMARY ===================="
+          # Skriv ut ändringar för loggen
+          echo "==================== ÄNDRINGSDETEKTERING SAMMANFATTNING ===================="
           echo -e "$summary"
           echo "================================================================="
-
-          # List the changed files.
-          cat changed_files.txt
-
-      # - name: Debug changes
-      #   run: |
-      #     echo "Files changed that caused infrastructure updates:"
-      #     grep -E "infrastructure/|bicep/|\.bicep$" changed_files.txt || echo "No matching infrastructure files"
-
-      #     echo "Files changed that caused ansible updates:"
-      #     grep -E "ansible/|playbooks/|roles/|templates/|mongodb|cosmos" changed_files.txt || echo "No matching ansible files"
-
-      #     echo "Files changed that caused webapp updates:"
-      #     echo "  .cs files:"
-      #     grep -i "\.cs" changed_files.txt | while read -r file; do
-      #       echo "  - $file"
-      #     done || echo "  No matching .cs files"
-
-      #     echo "  .csproj files:"
-      #     grep -i "\.csproj" changed_files.txt | while read -r file; do
-      #       echo "  - $file"
-      #     done || echo "  No matching .csproj files"
-
-      #     echo "  WebbApp directory:"
-      #     grep -i "WebbApp" changed_files.txt | while read -r file; do
-      #       echo "  - $file"
-      #     done || echo "  No matching WebbApp directory files"
-
-      #     echo "  wwwroot directory:"
-      #     grep -i "wwwroot" changed_files.txt | while read -r file; do
-      #       echo "  - $file"
-      #     done || echo "  No matching wwwroot directory files"
-
-      #     echo "  Controllers directory:"
-      #     grep -i "Controllers" changed_files.txt | while read -r file; do
-      #       echo "  - $file"
-      #     done || echo "  No matching Controllers directory files"
-
-      #     echo "  Views directory:"
-      #     grep -i "Views" changed_files.txt | while read -r file; do
-      #       echo "  - $file"
-      #     done || echo "  No matching Views directory files"
-
-      #     echo "  Models directory:"
-      #     grep -i "Models" changed_files.txt | while read -r file; do
-      #       echo "  - $file"
-      #     done || echo "  No matching Models directory files."
 
       - name: Debug outputs
         run: |
