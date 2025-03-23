@@ -605,7 +605,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Använd vår återanvändbara SSH-uppsättning
+      # Use our reusable SSH setup.
       - name: Set up SSH keys
         uses: ./.github/actions/setup-ssh
         with:
@@ -625,6 +625,11 @@ jobs:
 
           echo "RUNNER_TOKEN from output: ${{ needs.deploy-infrastructure.outputs.RUNNER_TOKEN != '' }}"
           echo "RUNNER_TOKEN from env: $([[ -n \"$RUNNER_TOKEN\" ]] && echo 'Yes' || echo 'No')"
+
+      - name: Debug run_ansible output
+        run: |
+          echo "run_ansible value: '${{ needs.check-changes.outputs.run_ansible }}'"
+          echo "Type: $(echo '${{ needs.check-changes.outputs.run_ansible }}' | wc -c) characters"
 
       - name: Ensure Ansible config exists
         run: |
