@@ -81,7 +81,7 @@ jobs:
           # Definiera mönster för olika ändringstyper
           BICEP_PATTERNS="infrastructure/ bicep/ \.bicep$"
           ANSIBLE_PATTERNS="ansible/ playbooks/ roles/ templates/ mongodb cosmos"
-          WEBAPP_PATTERNS="\.cs$ \.csproj$ WebbApp/ wwwroot/ Controllers/ Views/ Models/"
+          WEBAPP_PATTERNS="\.cs$ \.cshtml$ \.csproj$ WebbApp/ wwwroot/ Controllers/ Views/ Models/"
 
           # Initiera flaggor till false
           bicep_changes=false
@@ -112,6 +112,12 @@ jobs:
               fi
             done
           done < changed_files.txt
+
+          echo "DEBUG: Checking webapp patterns matching..."
+          for pattern in $WEBAPP_PATTERNS; do
+            echo "  Pattern: $pattern"
+            grep -E "$pattern" changed_files.txt || echo "  No matches for this pattern"
+          done
 
           # Sätt outputs baserat på ändringar
           echo "run_bicep=$bicep_changes" >> $GITHUB_OUTPUT
