@@ -30,6 +30,8 @@ env:
   RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
   LOCATION: northeurope
   REPO_NAME: ${{ secrets.REPO_NAME }}
+  ACTIONS_RUNNER_DEBUG: true
+  ACTIONS_STEP_DEBUG: true
 
 jobs:
 
@@ -111,11 +113,11 @@ jobs:
             done
           done < changed_files.txt
 
-          # echo "DEBUG: Checking webapp patterns matching..."
-          # for pattern in $WEBAPP_PATTERNS; do
-          #   echo "  Pattern: $pattern"
-          #   grep -E "$pattern" changed_files.txt || echo "  No matches for this pattern"
-          # done
+          echo "DEBUG: Checking webapp patterns matching..."
+          for pattern in $WEBAPP_PATTERNS; do
+            echo "  Pattern: $pattern"
+            grep -E "$pattern" changed_files.txt || echo "  No matches for this pattern"
+          done
 
           # Sätt outputs baserat på ändringar
           echo "run_bicep=$bicep_changes" >> $GITHUB_OUTPUT
@@ -207,8 +209,8 @@ jobs:
           echo "::add-mask::$TOKEN"
 
           # Check if the token is available.
-          # echo "Debug: Runner token"
-          # echo "PAT token available: ${{ secrets.PAT_TOKEN != '' }}"
+          echo "Debug: Runner token"
+          echo "PAT token available: ${{ secrets.PAT_TOKEN != '' }}"
           echo "Runner token available: $([[ -n "$TOKEN" ]] && echo "Yes" || echo "No")"
           echo "REPO_NAME: ${{ env.REPO_NAME }}"
 
@@ -370,8 +372,8 @@ jobs:
           echo "::add-mask::$TOKEN"
 
           # Check if the token is available.
-          # echo "Debug: Runner token"
-          # echo "PAT token available: ${{ secrets.PAT_TOKEN != '' }}"
+          echo "Debug: Runner token"
+          echo "PAT token available: ${{ secrets.PAT_TOKEN != '' }}"
           echo "Runner token available: $([[ -n "$TOKEN" ]] && echo "Yes" || echo "No")"
           echo "REPO_NAME: ${{ env.REPO_NAME }}"
 
@@ -406,7 +408,7 @@ jobs:
           echo "Bastion IP available: $([[ -n "$BASTION_IP" ]] && echo "Yes" || echo "No")"
 
           # Debug: Print the Bastion IP
-          # echo "Bastion IP: $BASTION_IP"
+          echo "Bastion IP: $BASTION_IP"
 
           echo "Getting App server IP..."
           APP_IP=$(az deployment group show \
@@ -419,7 +421,7 @@ jobs:
           echo "App IP available: $([[ -n "$APP_IP" ]] && echo "Yes" || echo "No")"
 
           # Debug: Print the App IP
-          # echo "App IP: $APP_IP"
+          echo "App IP: $APP_IP"
 
           echo "Getting MongoDB connection string..."
           MONGODB_CONNECTION_STRING=$(az deployment group show \
@@ -429,18 +431,18 @@ jobs:
             --output tsv)
 
           # debug: Print the MongoDB connection string
-          # echo "Available outputs:"
-          #   az deployment group show \
-          #     --resource-group ${{ env.RESOURCE_GROUP }} \
-          #     --name main \
-          #     --query "properties.outputs" \
-          #     --output json
+          echo "Available outputs:"
+            az deployment group show \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --name main \
+              --query "properties.outputs" \
+              --output json
 
           # Check if the connection string is available
           echo "Connection string available: $([[ -n "$MONGODB_CONNECTION_STRING" ]] && echo "Yes" || echo "No")"
 
           # Debug: Print the MongoDB connection string
-          # echo "MongoDB connection string: $MONGODB_CONNECTION_STRING"
+          echo "MongoDB connection string: $MONGODB_CONNECTION_STRING"
 
           echo "Getting storage account name..."
           STORAGE_ACCOUNT=$(az deployment group show \
@@ -453,7 +455,7 @@ jobs:
           echo "Storage account available: $([[ -n "$STORAGE_ACCOUNT" ]] && echo "Yes" || echo "No")"
 
           # Debug: Print the storage account name
-          # echo "Storage account: $STORAGE_ACCOUNT"
+          echo "Storage account: $STORAGE_ACCOUNT"
 
           echo "Getting blob endpoint..."
           BLOB_ENDPOINT=$(az deployment group show \
@@ -466,7 +468,7 @@ jobs:
           echo "Blob endpoint available: $([[ -n "$BLOB_ENDPOINT" ]] && echo "Yes" || echo "No")"
 
           # Debug: Print the Blob endpoint
-          # echo "Blob endpoint: $BLOB_ENDPOINT"
+          echo "Blob endpoint: $BLOB_ENDPOINT"
 
           # Output the values to the console.
           # echo "Bastion IP: $BASTION_IP"
@@ -510,8 +512,8 @@ jobs:
           echo "ANSIBLE_CONFIG=./ansible/ansible.cfg" >> $GITHUB_ENV
 
           # Debug directory structure
-          # echo "Directory structure:"
-          # find ./ansible -type d | sort
+          echo "Directory structure:"
+          find ./ansible -type d | sort
 
       - name: Test SSH connectivity
         run: |
@@ -592,8 +594,8 @@ jobs:
           echo "ANSIBLE_CONFIG=./ansible/ansible.cfg" >> $GITHUB_ENV
 
           # Debug directory structure
-          # echo "Directory structure:"
-          # find ./ansible -type d | sort
+          echo "Directory structure:"
+          find ./ansible -type d | sort
 
       - name: Test SSH connectivity
         run: |
@@ -656,8 +658,8 @@ jobs:
           echo "    mongodb_connection_string_base64: ${{ env.MONGODB_CONNECTION_STRING_B64 }}" >> ./ansible/inventories/azure_rm.yaml
 
           # Debug - visa inventory med maskerat token
-          # echo "Generated inventory file (sensitive data masked):"
-          # cat ./ansible/inventories/azure_rm.yaml | sed 's/github_runner_token: .*/github_runner_token: ***/' | sed 's/mongodb_connection_string_base64: .*/mongodb_connection_string_base64: ***/'
+          echo "Generated inventory file (sensitive data masked):"
+          cat ./ansible/inventories/azure_rm.yaml | sed 's/github_runner_token: .*/github_runner_token: ***/' | sed 's/mongodb_connection_string_base64: .*/mongodb_connection_string_base64: ***/'
 
           echo "Waiting for SSH to be available..."
           sleep 30
@@ -785,9 +787,6 @@ jobs:
   # ===========================================================================================
   # ==============================Deploy Artifact to App-Server================================
   # ===========================================================================================
-
-
-
   # Deploy the artifact to the app server.
   deploy-to-server:
     name: Deploy Artifact to App-Server
@@ -811,18 +810,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set IP variables
-        run: |
-          # Check if environment variables are available and set effective values if not.
-          if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
-            echo "Using fallback IP addresses"
-            echo "EFFECTIVE_APP_IP=10.0.2.4" >> $GITHUB_ENV
-            echo "EFFECTIVE_BASTION_IP=137.116.232.168" >> $GITHUB_ENV
-          else
-            echo "Using outputs from infrastructure deployment"
-            echo "EFFECTIVE_APP_IP=${{ env.APP_IP }}" >> $GITHUB_ENV
-            echo "EFFECTIVE_BASTION_IP=${{ env.BASTION_IP }}" >> $GITHUB_ENV
-          fi
+      # - name: Set IP variables
+      #   run: |
+      #     # Check if environment variables are available and set effective values if not.
+      #     if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
+      #       echo "Using fallback IP addresses"
+      #       echo "EFFECTIVE_APP_IP=10.0.2.4" >> $GITHUB_ENV
+      #       echo "EFFECTIVE_BASTION_IP=137.116.232.168" >> $GITHUB_ENV
+      #     else
+      #       echo "Using outputs from infrastructure deployment"
+      #       echo "EFFECTIVE_APP_IP=${{ env.APP_IP }}" >> $GITHUB_ENV
+      #       echo "EFFECTIVE_BASTION_IP=${{ env.BASTION_IP }}" >> $GITHUB_ENV
+      #     fi
 
       # Use the SSH setup action.
       - name: Set up SSH keys
