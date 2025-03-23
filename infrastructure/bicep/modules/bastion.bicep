@@ -2,10 +2,10 @@ param location string = resourceGroup().location
 param bastionName string
 param subnetId string
 param adminUsername string
-@secure()
+@secure() // Secure parameter.
 param sshPublicKey string
 
-// Create public IP for bastion host - ALLTID STATIC
+// Create public IP for bastion host.
 resource publicIp 'Microsoft.Network/publicIPAddresses@2021-05-01' = {
   name: '${bastionName}-ip'
   location: location
@@ -56,7 +56,6 @@ resource bastionVM 'Microsoft.Compute/virtualMachines@2021-07-01' = {
         managedDisk: {
           storageAccountType: 'Standard_LRS'
         }
-        // Hårdkoda ingen diskstorlek - låt Azure använda default
       }
     }
     osProfile: {

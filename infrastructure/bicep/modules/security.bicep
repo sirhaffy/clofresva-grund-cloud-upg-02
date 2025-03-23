@@ -1,27 +1,27 @@
 param vnetName string
-param bastionSubnetName string = 'BastionSubnet'
-param appServerSubnetName string = 'AppServerSubnet'
-param reverseProxySubnetName string = 'ReverseProxySubnet'
-param cosmosDbSubnetName string = 'CosmosDbSubnet'
+// param bastionSubnetName string = 'BastionSubnet'
+// param appServerSubnetName string = 'AppServerSubnet'
+// param reverseProxySubnetName string = 'ReverseProxySubnet'
+// param cosmosDbSubnetName string = 'CosmosDbSubnet'
 
 resource nsg 'Microsoft.Network/networkSecurityGroups@2021-02-01' = {
   name: '${vnetName}-nsg'
   location: resourceGroup().location
   properties: {
     securityRules: [
-      {
-        name: 'AllowBastionSSH'
-        properties: {
-          priority: 100
-          protocol: 'Tcp'
-          sourcePortRange: '*'
-          destinationPortRange: '22'
-          sourceAddressPrefix: '*'
-          destinationAddressPrefix: '*'
-          access: 'Allow'
-          direction: 'Inbound'
-        }
-      }
+      // {
+      //   name: 'AllowBastionSSH'
+      //   properties: {
+      //     priority: 100
+      //     protocol: 'Tcp'
+      //     sourcePortRange: '*'
+      //     destinationPortRange: '22'
+      //     sourceAddressPrefix: '*'
+      //     destinationAddressPrefix: '*'
+      //     access: 'Allow'
+      //     direction: 'Inbound'
+      //   }
+      // }
       {
         name: 'AllowBastion2222'
         properties: {
@@ -65,6 +65,19 @@ resource nsg 'Microsoft.Network/networkSecurityGroups@2021-02-01' = {
         name: 'AllowAppServerSSH'
         properties: {
           priority: 140
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '22'
+          sourceAddressPrefix: 'VirtualNetwork'
+          destinationAddressPrefix: '*'
+          access: 'Allow'
+          direction: 'Inbound'
+        }
+      }
+      {
+        name: 'AllowReverseProxySSH'
+        properties: {
+          priority: 150
           protocol: 'Tcp'
           sourcePortRange: '*'
           destinationPortRange: '22'
