@@ -598,8 +598,7 @@ jobs:
     name: Configure Servers with Ansible
     needs: [check-changes, deploy-infrastructure, get-infrastructure-info]
     if: >
-      ${{ always() &&
-      needs.check-changes.outputs.run_ansible == 'true' &&
+      ${{ needs.check-changes.outputs.run_ansible == 'true' &&
       (needs.deploy-infrastructure.result == 'success' ||
       (needs.deploy-infrastructure.result == 'skipped' && needs.get-infrastructure-info.result == 'success')) }}
     runs-on: ubuntu-latest
