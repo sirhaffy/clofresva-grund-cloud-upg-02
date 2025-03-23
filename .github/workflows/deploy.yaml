@@ -698,6 +698,13 @@ jobs:
   # =============================Deploy Application as Artifact===============================
   # ===========================================================================================
 
+# Run echo "check-changes.result: success"
+# check-changes.result: success
+
+# deploy-infrastructure.result: skipped
+# get-infrastructure-info.result: success
+# run_webapp: 'true'
+# Deploy App Condition: true
 
 
   # Build and deploy the dotnet app as an artifact and upload, if files were changed.
@@ -707,7 +714,8 @@ jobs:
     if: >
       ${{ needs.check-changes.outputs.run_webapp == 'true' &&
       (needs.deploy-infrastructure.result == 'success' ||
-      (needs.deploy-infrastructure.result == 'skipped' && needs.get-infrastructure-info.result == 'success')) }}
+      (needs.deploy-infrastructure.result == 'skipped' &&
+      needs.get-infrastructure-info.result == 'success')) }}
     runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
