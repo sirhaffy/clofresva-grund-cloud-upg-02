@@ -3,3 +3,5 @@
 - **Kurs**: Cloud Basics
 - **Skola**: Campus Mölndal YH
 - **Handledare**: Lars Appel
+
+This is a task for School.
