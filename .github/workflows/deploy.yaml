@@ -648,7 +648,7 @@ jobs:
   deploy-app:
     name: Deploy Application as Artifact
     needs: [check-changes, get-infrastructure-info, deploy-infrastructure]
-    if: ${{ needs.check-changes.outputs.run_webapp == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_deployment == 'true') }}
+    if: ${{ needs.check-changes.outputs.run_webapp == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_webapp == 'true') }}
     runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}

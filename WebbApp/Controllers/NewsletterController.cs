@@ -60,13 +60,30 @@ public class NewsletterController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Unsubscribe(string email)
     {
-        var result = await _newsletterService.UnsubscribeAsync(email);
-        
-        if (result.Succeeded)
+        if (string.IsNullOrEmpty(email))
         {
-            TempData["SuccessMessage"] = result.Message;
+            TempData["ErrorMessage"] = "Email is required for unsubscribing";
+            return RedirectToAction(nameof(Subscribers));
         }
+
+        try
+        {
+            var result = await _newsletterService.UnsubscribeAsync(email);
         
-        return RedirectToAction(nameof(Subscribe));
+            if (result.Succeeded)
+            {
+                TempData["SuccessMessage"] = result.Message;
+            }
+            else
+            {
+                TempData["ErrorMessage"] = result.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            TempData["ErrorMessage"] = $"Error unsubscribing: {ex.Message}";
+        }
+    
+        return RedirectToAction(nameof(Subscribers));
     }
 }
