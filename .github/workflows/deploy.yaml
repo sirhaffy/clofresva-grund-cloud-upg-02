@@ -511,7 +511,7 @@ jobs:
   configure-servers:
     name: Configure Servers with Ansible
     needs: [check-changes, deploy-infrastructure, get-infrastructure-info]
-    if: ${{ needs.check-changes.outputs.run_ansible == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_deployment == 'true') }}
+    if: ${{ always() && (needs.deploy-infrastructure.result == 'success' || needs.get-infrastructure-info.result == 'success') && (needs.check-changes.outputs.run_ansible == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_deployment == 'true')) }}
     runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
@@ -648,7 +648,7 @@ jobs:
   deploy-app:
     name: Deploy Application as Artifact
     needs: [check-changes, get-infrastructure-info, deploy-infrastructure]
-    if: ${{ needs.check-changes.outputs.run_webapp == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_deployment == 'true') }}
+    if: ${{ always() && (needs.deploy-infrastructure.result == 'success' || needs.get-infrastructure-info.result == 'success') && (needs.check-changes.outputs.run_webapp == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_deployment == 'true')) }}
     runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
@@ -752,7 +752,7 @@ jobs:
   # Deploy the artifact to the app server.
   deploy-to-server:
     name: Deploy Artifact to App-Server
-    needs: [deploy-app, get-infrastructure-info, deploy-infrastructure, deploy-app]
+    needs: [deploy-app, deploy-app]
     if: ${{ (needs.deploy-app.result == 'success' && needs.deploy-app.result != 'skipped') || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_deployment == 'true') }}
     runs-on: ubuntu-latest
     env:
