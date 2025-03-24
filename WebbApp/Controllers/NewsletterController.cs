@@ -6,7 +6,6 @@ namespace MVC_TestApp.Controllers;
 
 public class NewsletterController : Controller
 {
-    
     private readonly INewsletterService _newsletterService;
     
     public NewsletterController(INewsletterService newsletterService)
@@ -56,7 +55,7 @@ public class NewsletterController : Controller
     }
     
     // Post Unsubscribe
-    [HttpPost] // Uses HttpPost to prevent accidental unsubscribes via GET requests
+    [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Unsubscribe(string email)
     {

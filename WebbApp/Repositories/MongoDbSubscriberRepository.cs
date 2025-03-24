@@ -5,7 +5,6 @@ namespace MVC_TestApp.Repositories;
 
 public class MongoDbSubscriberRepository : ISubscriberRepository
 {
-    
     private readonly IMongoCollection<Subscriber> _subscribers;
 
     public MongoDbSubscriberRepository(IMongoDatabase database)
@@ -18,9 +17,14 @@ public class MongoDbSubscriberRepository : ISubscriberRepository
     {
         return await _subscribers.Find(s => true).ToListAsync();
     }
-    
-    // Get a subscriber by email
-    public async Task<Subscriber?> GetSubscriberAsync(string email)
+
+    public async Task<Subscriber> GetSubscriberByIdAsync(string id)
+    {
+        var filter = Builders<Subscriber>.Filter.Eq(s => s.Id, id);
+        return await _subscribers.Find(filter).FirstOrDefaultAsync();
+    }
+
+    public async Task<Subscriber> GetSubscriberByEmailAsync(string email)
     {
         var filter = Builders<Subscriber>.Filter.Eq(s => s.Email, email);
         return await _subscribers.Find(filter).FirstOrDefaultAsync();
@@ -63,5 +67,4 @@ public class MongoDbSubscriberRepository : ISubscriberRepository
         var result = await _subscribers.Find(filter).FirstOrDefaultAsync();
         return result != null;
     }
-    
 }

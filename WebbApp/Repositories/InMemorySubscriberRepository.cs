@@ -6,19 +6,21 @@ public class InMemorySubscriberRepository : ISubscriberRepository
 {
     private readonly List<Subscriber> _subscribers = new();
 
-    public Task<IEnumerable<Subscriber>> GetSubscribers()
-    {
-        return Task.FromResult(_subscribers.AsEnumerable());
-    }
-
     public Task<IEnumerable<Subscriber>> GetSubscribersAsync()
     {
         return Task.FromResult(_subscribers.AsEnumerable());
     }
 
-    public Task<Subscriber?> GetSubscriberAsync(string email)
+    public Task<Subscriber> GetSubscriberByIdAsync(string id)
     {
-        return Task.FromResult(_subscribers.FirstOrDefault(s => s.Email == email));
+        var subscriber = _subscribers.FirstOrDefault(s => s.Id == id);
+        return Task.FromResult(subscriber);
+    }
+
+    public Task<Subscriber> GetSubscriberByEmailAsync(string email)
+    {
+        var subscriber = _subscribers.FirstOrDefault(s => s.Email == email);
+        return Task.FromResult(subscriber);
     }
 
     public Task<bool> AddSubscriberAsync(Subscriber subscriber)
@@ -42,8 +44,6 @@ public class InMemorySubscriberRepository : ISubscriberRepository
         }
 
         existingSubscriber.Name = subscriber.Name;
-        // existingSubscriber.FirstName = subscriber.FirstName;
-        // existingSubscriber.LastName = subscriber.LastName;
         return Task.FromResult(true);
     }
 

@@ -5,7 +5,8 @@ namespace MVC_TestApp.Repositories;
 public interface ISubscriberRepository
 {
     Task<IEnumerable<Subscriber>> GetSubscribersAsync();
-    Task<Subscriber?> GetSubscriberAsync(string email);
+    Task<Subscriber> GetSubscriberByIdAsync(string id);
+    Task<Subscriber> GetSubscriberByEmailAsync(string email);
     Task<bool> AddSubscriberAsync(Subscriber subscriber);
     Task<bool> UpdateSubscriberAsync(Subscriber subscriber);
     Task<bool> DeleteSubscriberAsync(string email);

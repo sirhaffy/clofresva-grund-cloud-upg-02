@@ -55,28 +55,29 @@ public class NewsletterService : INewsletterService
                 return OperationResult.Failure("Invalid email address.");
             }
 
-            var subscriber = await _repository.GetSubscriberAsync(email);
-            if (subscriber == null)
+            // Kontrollera om prenumeranten finns
+            if (!await _repository.ExistsSubscriberAsync(email))
             {
                 return OperationResult.Failure("We couldn't find your subscription in our system.");
             }
 
+            // Ta bort prenumeranten direkt med e-postadressen
             var success = await _repository.DeleteSubscriberAsync(email);
+            
             return success
                 ? OperationResult.Success("You have been successfully removed from our newsletter. We're sorry to see you go!")
                 : OperationResult.Failure("Failed to remove your subscription. Please try again.");
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            return OperationResult.Failure("An unexpected error occurred. Please try again later.");
+            return OperationResult.Failure($"An unexpected error occurred: {ex.Message}");
         }
     }
 
     public async Task<IEnumerable<Subscriber>> GetSubscribersAsync()
     {
-        // Get all subscribers from the repository and convert to List to match the interface
+        // Get all subscribers from the repository
         var subscribers = await _repository.GetSubscribersAsync();
-        return subscribers.ToList();
+        return subscribers;
     }
-
 }
