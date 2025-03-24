@@ -647,7 +647,7 @@ jobs:
   # Build and deploy the dotnet app as an artifact and upload, if files were changed.
   deploy-app:
     name: Deploy Application as Artifact
-    needs: [check-changes, get-infrastructure-info, deploy-infrastructure]
+    needs: [check-changes, get-infrastructure-info, deploy-infrastructure, configure-servers]
     if: ${{ always() && (needs.deploy-infrastructure.result == 'success' || needs.get-infrastructure-info.result == 'success') && (needs.check-changes.outputs.run_webapp == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_deployment == 'true')) }}
     runs-on: ubuntu-latest
     env:
