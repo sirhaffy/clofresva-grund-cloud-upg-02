@@ -566,7 +566,7 @@ jobs:
 
           # Test SSH to bastion
           echo "Testing SSH to bastion host at $BASTION_IP..."
-          ssh -i ~/.ssh/clofresva_gc_upg02_azure_key -o ConnectTimeout=10 azureuser@$BASTION_IP "echo 'Bastion connection successful!'" || echo "WARNING: Bastion connection failed!"
+          ssh -i ~/.ssh/clofresva_gc_upg02_azure_key -o ConnectTimeout=10 -p 2222 azureuser@$BASTION_IP "echo 'Bastion connection successful!'" || echo "WARNING: Bastion connection failed!"
 
           # Test SSH to app server via bastion
           echo "Testing SSH to app server at $APP_IP via bastion..."
@@ -726,7 +726,8 @@ jobs:
           sleep 10
 
           # Check service status
-          ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP" -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$APP_IP "
+          ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP -p 2222" -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$APP_IP "
+
             echo 'Service status:'
             sudo systemctl status webapp.service || true
 
@@ -826,10 +827,10 @@ jobs:
           echo "Using Bastion IP: ${{ env.BASTION_IP }}"
 
           echo "Creating target directory on remote server..."
-          ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP" -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$APP_IP "sudo mkdir -p /tmp/webapp && sudo chown azureuser:azureuser /tmp/webapp"
+          ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP -p 2222" -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$APP_IP "sudo mkdir -p /tmp/webapp && sudo chown azureuser:azureuser /tmp/webapp"
 
           echo "Copying files to remote server..."
-          scp -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP" -i ~/.ssh/clofresva_gc_upg02_azure_key -r ./webapp-files/* azureuser@$APP_IP:/tmp/webapp/
+          scp -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP -p 2222" -i ~/.ssh/clofresva_gc_upg02_azure_key -r ./webapp-files/* azureuser@$APP_IP:/tmp/webapp/
 
           echo "Deploying files on app server..."
           ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP -p 2222" -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$APP_IP "
@@ -908,7 +909,8 @@ jobs:
           fi
 
           echo "Verifierar serverkonfiguration..."
-          ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@${{ env.BASTION_IP }}" -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@${{ env.APP_IP }} "
+          ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@${{ env.BASTION_IP }} -p 2222" -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@${{ env.APP_IP }} "
+
             echo 'Kontrollerar serverkonfiguration...'
 
             if [ ! -f /var/www/app/appsettings.json ]; then
