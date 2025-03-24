@@ -68,8 +68,9 @@ jobs:
             echo "run_ansible=true" >> $GITHUB_OUTPUT
             echo "run_webapp=true" >> $GITHUB_OUTPUT
             echo "changes_detected=true" >> $GITHUB_OUTPUT
-            echo "change_summary=Manuell trigger: Kör alla deployment-steg" >> $GITHUB_OUTPUT
-            exit 0
+            # Lägg till för debug
+            echo "GITHUB_OUTPUT innehåller:"
+            cat $GITHUB_OUTPUT
           fi
 
           # Hämta ändrade filer
@@ -510,7 +511,7 @@ jobs:
   configure-servers:
     name: Configure Servers with Ansible
     needs: [check-changes, deploy-infrastructure, get-infrastructure-info]
-    if: ${{ needs.check-changes.outputs.run_ansible == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_deployment == 'true' && github.event.inputs.skip_ansible != 'true') }}
+    if: ${{ needs.check-changes.outputs.run_ansible == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_deployment == 'true') }}
     runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
@@ -647,7 +648,7 @@ jobs:
   deploy-app:
     name: Deploy Application as Artifact
     needs: [check-changes, get-infrastructure-info, deploy-infrastructure]
-    if: ${{ needs.check-changes.outputs.run_webapp == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_deployment == 'true' && github.event.inputs.run_webapp == 'true') }}
+    if: ${{ needs.check-changes.outputs.run_webapp == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_deployment == 'true') }}
     runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
@@ -752,7 +753,7 @@ jobs:
   deploy-to-server:
     name: Deploy Artifact to App-Server
     needs: [deploy-app, get-infrastructure-info, deploy-infrastructure]
-    if: ${{ always() && (needs.deploy-app.result == 'success' || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_deployment == 'true' && github.event.inputs.run_webapp == 'true')) }}
+    if: ${{ (needs.deploy-app.result == 'success' && needs.deploy-app.result != 'skipped') || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_deployment == 'true') }}
     runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
