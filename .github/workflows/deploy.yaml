@@ -168,7 +168,7 @@ jobs:
   get-infrastructure-info:
     name: Get Existing Infrastructure Info
     needs: check-changes
-    if: ${{ needs.check-changes.outputs.changes_detected == 'true' }}
+    if: ${{ needs.check-changes.outputs.changes_detected == 'true' && needs.check-changes.outputs.run_bicep != 'true' }}
     runs-on: ubuntu-latest
     outputs:
       BASTION_IP: ${{ steps.get_infrastructure_data.outputs.BASTION_IP }}
@@ -250,12 +250,12 @@ jobs:
               --output tsv 2>/dev/null) || APP_IP=""
           fi
 
-          echo "Getting MongoDB connection string..."
-          MONGODB_CONNECTION_STRING=$(az deployment group show \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --name main \
-            --query "properties.outputs.mongoDbConnectionString.value" \
-            --output tsv 2>/dev/null) || MONGODB_CONNECTION_STRING=""
+          # echo "Getting MongoDB connection string..."
+          # MONGODB_CONNECTION_STRING=$(az deployment group show \
+          #   --resource-group ${{ env.RESOURCE_GROUP }} \
+          #   --name main \
+          #   --query "properties.outputs.mongoDbConnectionString.value" \
+          #   --output tsv 2>/dev/null) || MONGODB_CONNECTION_STRING=""
 
           echo "Getting storage account name..."
           STORAGE_ACCOUNT=$(az deployment group show \
@@ -577,18 +577,8 @@ jobs:
         with:
           ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      # - name: Debug environment variables
-      #   run: |
-      #     echo "Environment variables:"
-      #     echo "BASTION_IP: ${{ env.BASTION_IP }}"
-      #     echo "APP_IP: ${{ env.APP_IP }}"
-      #     echo "PROJECT_NAME: ${{ env.PROJECT_NAME }}"
-      #     echo "STORAGE_ACCOUNT: ${{ env.STORAGE_ACCOUNT }}"
-      #     echo "BLOB_ENDPOINT: ${{ env.BLOB_ENDPOINT }}"
-      #     echo "REPO_NAME: ${{ env.REPO_NAME }}"
-      #     echo "RUNNER_TOKEN available: ${{ env.RUNNER_TOKEN != '' }}"
-      #     echo "RUNNER_TOKEN length: ${#RUNNER_TOKEN}"
-
+      - name: Debug environment variables
+        run: |
           echo "RUNNER_TOKEN from output: ${{ needs.deploy-infrastructure.outputs.RUNNER_TOKEN != '' }}"
           echo "RUNNER_TOKEN from env: $([[ -n \"$RUNNER_TOKEN\" ]] && echo 'Yes' || echo 'No')"
 
@@ -645,14 +635,17 @@ jobs:
           echo "Using App IP: $APP_IP"
           echo "Using Bastion IP: $BASTION_IP"
 
-          # Create inventory file
+          # Skapa inventory-fil
           echo "all:" > ./ansible/inventories/azure_rm.yaml
           echo "  hosts:" >> ./ansible/inventories/azure_rm.yaml
           echo "    app_server:" >> ./ansible/inventories/azure_rm.yaml
           echo "      ansible_host: $APP_IP" >> ./ansible/inventories/azure_rm.yaml
           echo "      ansible_user: azureuser" >> ./ansible/inventories/azure_rm.yaml
           echo "      ansible_ssh_private_key_file: ~/.ssh/clofresva_gc_upg02_azure_key" >> ./ansible/inventories/azure_rm.yaml
-          echo "      ansible_ssh_common_args: '-o ProxyCommand=\"ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP\"'" >> ./ansible/inventories/azure_rm.yaml
+
+          # ProxyCommand för att nå app-servern via bastion
+          echo "      ansible_ssh_common_args: '-o ProxyCommand=ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP'" >> ./ansible/inventories/azure_rm.yaml
+
           echo "  vars:" >> ./ansible/inventories/azure_rm.yaml
           echo "    project_name: ${{ env.PROJECT_NAME }}" >> ./ansible/inventories/azure_rm.yaml
           echo "    storage_account: ${{ env.STORAGE_ACCOUNT }}" >> ./ansible/inventories/azure_rm.yaml
@@ -660,6 +653,10 @@ jobs:
           echo "    container_name: appdata" >> ./ansible/inventories/azure_rm.yaml
           echo "    github_repo: ${{ env.REPO_NAME }}" >> ./ansible/inventories/azure_rm.yaml
           echo "    github_runner_token: ***" >> ./ansible/inventories/azure_rm.yaml
+
+          # Debug - visa inventory med maskerat token
+          echo "Generated inventory file (sensitive data masked):"
+          cat ./ansible/inventories/azure_rm.yaml | sed 's/github_runner_token: .*/github_runner_token: ***/' | sed 's/mongodb_connection_string_base64: .*/mongodb_connection_string_base64: ***/'
 
           # Säkert sätt att lägga till token i filen
           sed -i "s/github_runner_token: \*\*\*/github_runner_token: ${{ env.RUNNER_TOKEN }}/" ./ansible/inventories/azure_rm.yaml
