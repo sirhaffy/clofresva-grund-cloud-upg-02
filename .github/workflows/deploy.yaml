@@ -644,7 +644,7 @@ jobs:
           echo "      ansible_ssh_private_key_file: ~/.ssh/clofresva_gc_upg02_azure_key" >> ./ansible/inventories/azure_rm.yaml
 
           # ProxyCommand för att nå app-servern via bastion
-          echo "      ansible_ssh_common_args: '-o ProxyCommand=ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP'" >> ./ansible/inventories/azure_rm.yaml
+          echo "      ansible_ssh_common_args: '-o ProxyCommand=ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP -p 2222'" >> ./ansible/inventories/azure_rm.yaml
 
           echo "  vars:" >> ./ansible/inventories/azure_rm.yaml
           echo "    project_name: ${{ env.PROJECT_NAME }}" >> ./ansible/inventories/azure_rm.yaml
