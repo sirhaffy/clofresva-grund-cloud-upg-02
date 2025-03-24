@@ -677,7 +677,7 @@ jobs:
           # Backup existing app if it exists (via SSH) if setup failed.
           if [ "${{ env.APP_IP }}" != "" ] && [ "${{ env.BASTION_IP }}" != "" ]; then
             echo "Creating backup of existing app..."
-            ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP" -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$APP_IP "
+            ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP -p 2222" -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$APP_IP "
               if [ -d /var/www/app ]; then
                 sudo cp -r /var/www/app /var/www/app_backup_$(date +%Y%m%d_%H%M%S)
               fi
@@ -798,7 +798,7 @@ jobs:
 
           echo "Testing SSH connectivity:"
           echo "Bastion IP: $BASTION_IP"
-          ssh -v -i ~/.ssh/clofresva_gc_upg02_azure_key \
+          ssh -v -i ~/.ssh/clofresva_gc_upg02_azure_key -p 2222 \
             azureuser@$BASTION_IP \
             "echo 'Connected to Bastion'" || echo "Failed to connect to Bastion"
 
