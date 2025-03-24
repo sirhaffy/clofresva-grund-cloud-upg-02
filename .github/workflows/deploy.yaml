@@ -752,7 +752,7 @@ jobs:
   # Deploy the artifact to the app server.
   deploy-to-server:
     name: Deploy Artifact to App-Server
-    needs: [deploy-app, get-infrastructure-info, deploy-infrastructure]
+    needs: [deploy-app, get-infrastructure-info, deploy-infrastructure, deploy-app]
     if: ${{ (needs.deploy-app.result == 'success' && needs.deploy-app.result != 'skipped') || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_deployment == 'true') }}
     runs-on: ubuntu-latest
     env:
