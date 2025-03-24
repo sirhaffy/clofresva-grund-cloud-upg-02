@@ -494,11 +494,12 @@ jobs:
 
           # Test SSH to bastion
           echo "Testing SSH to bastion host at $BASTION_IP..."
-          ssh -i ~/.ssh/clofresva_gc_upg02_azure_key -o ConnectTimeout=10 azureuser@$BASTION_IP "echo 'Bastion connection successful!'" || echo "WARNING: Bastion connection failed!"
+          ssh -i ~/.ssh/clofresva_gc_upg02_azure_key -o ConnectTimeout=10 -p 2222 azureuser@$BASTION_IP "echo 'Bastion connection successful!'" || echo "WARNING: Bastion connection failed!"
+
 
           # Test SSH to app server via bastion
           echo "Testing SSH to app server at $APP_IP via bastion..."
-          ssh -i ~/.ssh/clofresva_gc_upg02_azure_key -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP" azureuser@$APP_IP "echo 'App server connection successful!'" || echo "WARNING: App server connection failed!"
+          ssh -i ~/.ssh/clofresva_gc_upg02_azure_key -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP -p 2222" azureuser@$APP_IP "echo 'App server connection successful!'" || echo "WARNING: App server connection failed!"
 
 
 
@@ -752,7 +753,7 @@ jobs:
   # Deploy the artifact to the app server.
   deploy-to-server:
     name: Deploy Artifact to App-Server
-    needs: [deploy-app, deploy-app]
+    needs: [deploy-app]
     if: ${{ (needs.deploy-app.result == 'success' && needs.deploy-app.result != 'skipped') || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_deployment == 'true') }}
     runs-on: ubuntu-latest
     env:
@@ -831,7 +832,7 @@ jobs:
           scp -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP" -i ~/.ssh/clofresva_gc_upg02_azure_key -r ./webapp-files/* azureuser@$APP_IP:/tmp/webapp/
 
           echo "Deploying files on app server..."
-          ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP" -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$APP_IP "
+          ssh -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP -p 2222" -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$APP_IP "
             echo 'Deploying application...'
             sudo systemctl stop webapp.service || echo 'Service not running yet'
 
