@@ -3,6 +3,9 @@
 ##
 ## Get latest from `dotnet new gitignore`
 
+# Extra
+clofresva-gc-upg-02.md
+
 # Ignore environment files
 .env
 *.env

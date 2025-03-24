@@ -126,7 +126,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
         properties: {
           addressPrefix: bastionSubnetPrefix
           networkSecurityGroup: {
-            id: bastionNsg.id // Connect the NSG to the bastion subnet.
+            id: bastionNsg.id // Connects the NSG to the bastion subnet.
           }
         }
       }
@@ -135,7 +135,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
         properties: {
           addressPrefix: appServerSubnetPrefix
           networkSecurityGroup: {
-            id: appServerNsg.id // Connect the NSG to the app server subnet.
+            id: appServerNsg.id // Connects the NSG to the app server subnet.
           }
         }
       }
@@ -144,7 +144,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
         properties: {
           addressPrefix: reverseProxySubnetPrefix
           networkSecurityGroup: {
-            id: reverseProxyNsg.id // Connect the NSG to the reverse proxy subnet.
+            id: reverseProxyNsg.id // Connects the NSG to the reverse proxy subnet.
           }
         }
       }

@@ -113,11 +113,11 @@ jobs:
             done
           done < changed_files.txt
 
-          echo "DEBUG: Checking webapp patterns matching..."
-          for pattern in $WEBAPP_PATTERNS; do
-            echo "  Pattern: $pattern"
-            grep -E "$pattern" changed_files.txt || echo "  No matches for this pattern"
-          done
+          # echo "DEBUG: Checking webapp patterns matching..."
+          # for pattern in $WEBAPP_PATTERNS; do
+          #   echo "  Pattern: $pattern"
+          #   grep -E "$pattern" changed_files.txt || echo "  No matches for this pattern"
+          # done
 
           # Sätt outputs baserat på ändringar
           echo "run_bicep=$bicep_changes" >> $GITHUB_OUTPUT
@@ -209,10 +209,10 @@ jobs:
           echo "::add-mask::$TOKEN"
 
           # Check if the token is available.
-          echo "Debug: Runner token"
-          echo "PAT token available: ${{ secrets.PAT_TOKEN != '' }}"
-          echo "Runner token available: $([[ -n "$TOKEN" ]] && echo "Yes" || echo "No")"
-          echo "REPO_NAME: ${{ env.REPO_NAME }}"
+          # echo "Debug: Runner token"
+          # echo "PAT token available: ${{ secrets.PAT_TOKEN != '' }}"
+          # echo "Runner token available: $([[ -n "$TOKEN" ]] && echo "Yes" || echo "No")"
+          # echo "REPO_NAME: ${{ env.REPO_NAME }}"
 
       # Get the infrastructure info from Azure
       - name: Get Infrastructure Data
@@ -308,11 +308,11 @@ jobs:
           fi
 
           # Debug: Print the outputs
-          echo "Outputs som sätts för nästa jobb:"
-          echo "BASTION_IP: $(cat $GITHUB_OUTPUT | grep BASTION_IP)"
-          echo "APP_IP: $(cat $GITHUB_OUTPUT | grep APP_IP)"
-          echo "STORAGE_ACCOUNT: $(cat $GITHUB_OUTPUT | grep STORAGE_ACCOUNT)"
-          echo "BLOB_ENDPOINT: $(cat $GITHUB_OUTPUT | grep BLOB_ENDPOINT)"
+          # echo "Outputs som sätts för nästa jobb:"
+          # echo "BASTION_IP: $(cat $GITHUB_OUTPUT | grep BASTION_IP)"
+          # echo "APP_IP: $(cat $GITHUB_OUTPUT | grep APP_IP)"
+          # echo "STORAGE_ACCOUNT: $(cat $GITHUB_OUTPUT | grep STORAGE_ACCOUNT)"
+          # echo "BLOB_ENDPOINT: $(cat $GITHUB_OUTPUT | grep BLOB_ENDPOINT)"
 
 
 
@@ -376,6 +376,15 @@ jobs:
           echo "PAT token available: ${{ secrets.PAT_TOKEN != '' }}"
           echo "Runner token available: $([[ -n "$TOKEN" ]] && echo "Yes" || echo "No")"
           echo "REPO_NAME: ${{ env.REPO_NAME }}"
+
+      # TODO
+      # Deploy the infrastructure using Bicep
+      # - name: Deploy with Complete Mode
+      #   run: |
+      #     az deployment group what-if --resource-group ${{ env.RESOURCE_GROUP }} --template-file ./infrastructure/bicep/main.bicep
+
+      #     # Lägg till en bekräftelsesteg här om möjligt
+      #     az deployment group create --resource-group ${{ env.RESOURCE_GROUP }} --template-file ./infrastructure/bicep/main.bicep --mode Complete
 
       # Deploy the infrastructure using Bicep
       - name: Deploy Infrastructure
@@ -517,15 +526,15 @@ jobs:
 
       - name: Test SSH connectivity
         run: |
-          # Check if environment variables are available
-          if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
-            echo "WARNING: IP addresses not set. Using hardcoded values."
-            APP_IP="10.0.2.4"
-            BASTION_IP="137.116.232.168"
-          else
-            APP_IP="${{ env.APP_IP }}"
-            BASTION_IP="${{ env.BASTION_IP }}"
-          fi
+          # Debug: Check if environment variables are available
+          # if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
+          #   echo "WARNING: IP addresses not set. Using hardcoded values."
+          #   APP_IP="10.0.2.4"
+          #   BASTION_IP="137.116.232.168"
+          # else
+          #   APP_IP="${{ env.APP_IP }}"
+          #   BASTION_IP="${{ env.BASTION_IP }}"
+          # fi
 
           # Test SSH to bastion
           echo "Testing SSH to bastion host at $BASTION_IP..."
@@ -568,17 +577,17 @@ jobs:
         with:
           ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Debug environment variables
-        run: |
-          echo "Environment variables:"
-          echo "BASTION_IP: ${{ env.BASTION_IP }}"
-          echo "APP_IP: ${{ env.APP_IP }}"
-          echo "PROJECT_NAME: ${{ env.PROJECT_NAME }}"
-          echo "STORAGE_ACCOUNT: ${{ env.STORAGE_ACCOUNT }}"
-          echo "BLOB_ENDPOINT: ${{ env.BLOB_ENDPOINT }}"
-          echo "REPO_NAME: ${{ env.REPO_NAME }}"
-          echo "RUNNER_TOKEN available: ${{ env.RUNNER_TOKEN != '' }}"
-          echo "RUNNER_TOKEN length: ${#RUNNER_TOKEN}"
+      # - name: Debug environment variables
+      #   run: |
+      #     echo "Environment variables:"
+      #     echo "BASTION_IP: ${{ env.BASTION_IP }}"
+      #     echo "APP_IP: ${{ env.APP_IP }}"
+      #     echo "PROJECT_NAME: ${{ env.PROJECT_NAME }}"
+      #     echo "STORAGE_ACCOUNT: ${{ env.STORAGE_ACCOUNT }}"
+      #     echo "BLOB_ENDPOINT: ${{ env.BLOB_ENDPOINT }}"
+      #     echo "REPO_NAME: ${{ env.REPO_NAME }}"
+      #     echo "RUNNER_TOKEN available: ${{ env.RUNNER_TOKEN != '' }}"
+      #     echo "RUNNER_TOKEN length: ${#RUNNER_TOKEN}"
 
           echo "RUNNER_TOKEN from output: ${{ needs.deploy-infrastructure.outputs.RUNNER_TOKEN != '' }}"
           echo "RUNNER_TOKEN from env: $([[ -n \"$RUNNER_TOKEN\" ]] && echo 'Yes' || echo 'No')"
@@ -819,11 +828,11 @@ jobs:
 
       - name: Debug SSH configuration
         run: |
-          echo "SSH directory contents:"
-          ls -la ~/.ssh/
+          # echo "SSH directory contents:"
+          # ls -la ~/.ssh/
 
-          echo "SSH config file:"
-          cat ~/.ssh/config
+          # echo "SSH config file:"
+          # cat ~/.ssh/config
 
           # Check if environment variables are available
           if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
@@ -851,8 +860,8 @@ jobs:
         run: |
           echo "Removing appsettings.json from artifact to prevent overriding server configuration..."
           rm -f ./webapp-files/appsettings.json
-          echo "Files after removal:"
-          ls -la ./webapp-files/
+          # echo "Files after removal:"
+          # ls -la ./webapp-files/
 
       - name: Create target directory and deploy app
         run: |
