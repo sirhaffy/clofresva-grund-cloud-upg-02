@@ -62,7 +62,7 @@ public class NewsletterController : Controller
     {
         if (string.IsNullOrEmpty(email))
         {
-            TempData["ErrorMessage"] = "Email is required for unsubscribing";
+            TempData["ErrorMessage"] = "Email is required for unsubscribing.";
             return RedirectToAction(nameof(Subscribers));
         }
 
