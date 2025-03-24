@@ -30,8 +30,7 @@ env:
   RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
   LOCATION: northeurope
   REPO_NAME: ${{ secrets.REPO_NAME }}
-  ACTIONS_RUNNER_DEBUG: true
-  ACTIONS_STEP_DEBUG: true
+
 
 jobs:
 
@@ -168,7 +167,7 @@ jobs:
   get-infrastructure-info:
     name: Get Existing Infrastructure Info
     needs: check-changes
-    if: ${{ needs.check-changes.outputs.changes_detected == 'true' && needs.check-changes.outputs.run_bicep != 'true' }}
+    if: ${{ needs.check-changes.outputs.changes_detected == 'true' && needs.check-changes.outputs.run_bicep != 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_deployment == 'true' && github.event.inputs.skip_bicep == 'true') }}
     runs-on: ubuntu-latest
     outputs:
       BASTION_IP: ${{ steps.get_infrastructure_data.outputs.BASTION_IP }}
@@ -250,13 +249,6 @@ jobs:
               --output tsv 2>/dev/null) || APP_IP=""
           fi
 
-          # echo "Getting MongoDB connection string..."
-          # MONGODB_CONNECTION_STRING=$(az deployment group show \
-          #   --resource-group ${{ env.RESOURCE_GROUP }} \
-          #   --name main \
-          #   --query "properties.outputs.mongoDbConnectionString.value" \
-          #   --output tsv 2>/dev/null) || MONGODB_CONNECTION_STRING=""
-
           echo "Getting storage account name..."
           STORAGE_ACCOUNT=$(az deployment group show \
             --resource-group ${{ env.RESOURCE_GROUP }} \
@@ -307,18 +299,6 @@ jobs:
             echo "Warning: MongoDB connection string not found or too short"
           fi
 
-          # Debug: Print the outputs
-          # echo "Outputs som sätts för nästa jobb:"
-          # echo "BASTION_IP: $(cat $GITHUB_OUTPUT | grep BASTION_IP)"
-          # echo "APP_IP: $(cat $GITHUB_OUTPUT | grep APP_IP)"
-          # echo "STORAGE_ACCOUNT: $(cat $GITHUB_OUTPUT | grep STORAGE_ACCOUNT)"
-          # echo "BLOB_ENDPOINT: $(cat $GITHUB_OUTPUT | grep BLOB_ENDPOINT)"
-
-
-
-
-
-
 
 
   # ===========================================================================================
@@ -331,7 +311,7 @@ jobs:
   deploy-infrastructure:
     name: Deploy Azure Infrastructure
     needs: check-changes
-    if: ${{ needs.check-changes.outputs.run_bicep == 'true' }}
+    if: ${{ needs.check-changes.outputs.run_bicep == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_deployment == 'true' && github.event.inputs.skip_bicep != 'true') }}
     runs-on: ubuntu-latest
     outputs:
       BASTION_IP: ${{ steps.deployment_data.outputs.BASTION_IP }}
@@ -376,15 +356,6 @@ jobs:
           echo "PAT token available: ${{ secrets.PAT_TOKEN != '' }}"
           echo "Runner token available: $([[ -n "$TOKEN" ]] && echo "Yes" || echo "No")"
           echo "REPO_NAME: ${{ env.REPO_NAME }}"
-
-      # TODO
-      # Deploy the infrastructure using Bicep
-      # - name: Deploy with Complete Mode
-      #   run: |
-      #     az deployment group what-if --resource-group ${{ env.RESOURCE_GROUP }} --template-file ./infrastructure/bicep/main.bicep
-
-      #     # Lägg till en bekräftelsesteg här om möjligt
-      #     az deployment group create --resource-group ${{ env.RESOURCE_GROUP }} --template-file ./infrastructure/bicep/main.bicep --mode Complete
 
       # Deploy the infrastructure using Bicep
       - name: Deploy Infrastructure
@@ -479,13 +450,6 @@ jobs:
           # Debug: Print the Blob endpoint
           echo "Blob endpoint: $BLOB_ENDPOINT"
 
-          # Output the values to the console.
-          # echo "Bastion IP: $BASTION_IP"
-          # echo "App IP: $APP_IP"
-          # echo "Storage Account: $STORAGE_ACCOUNT"
-          # echo "Blob Endpoint: $BLOB_ENDPOINT"
-          # echo "MongoDB connection string length: ${#MONGODB_CONNECTION_STRING}"
-
           # Set the environment variables.
           echo "BASTION_IP=$BASTION_IP" >> $GITHUB_ENV
           echo "APP_IP=$APP_IP" >> $GITHUB_ENV
@@ -526,15 +490,6 @@ jobs:
 
       - name: Test SSH connectivity
         run: |
-          # Debug: Check if environment variables are available
-          # if [ -z "${{ env.APP_IP }}" ] || [ -z "${{ env.BASTION_IP }}" ]; then
-          #   echo "WARNING: IP addresses not set. Using hardcoded values."
-          #   APP_IP="10.0.2.4"
-          #   BASTION_IP="137.116.232.168"
-          # else
-          #   APP_IP="${{ env.APP_IP }}"
-          #   BASTION_IP="${{ env.BASTION_IP }}"
-          # fi
 
           # Test SSH to bastion
           echo "Testing SSH to bastion host at $BASTION_IP..."
@@ -555,8 +510,7 @@ jobs:
   configure-servers:
     name: Configure Servers with Ansible
     needs: [check-changes, deploy-infrastructure, get-infrastructure-info]
-    if: >
-      ${{ needs.check-changes.outputs.run_ansible == 'true' }}
+    if: ${{ needs.check-changes.outputs.run_ansible == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_deployment == 'true' && github.event.inputs.skip_ansible != 'true') }}
     runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
@@ -693,7 +647,7 @@ jobs:
   deploy-app:
     name: Deploy Application as Artifact
     needs: [check-changes, get-infrastructure-info]
-    if: ${{ needs.check-changes.outputs.run_webapp == 'true' }}
+    if: ${{ needs.check-changes.outputs.run_webapp == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_deployment == 'true') || github.event.inputs.run_webapp == 'true' }}
     runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
