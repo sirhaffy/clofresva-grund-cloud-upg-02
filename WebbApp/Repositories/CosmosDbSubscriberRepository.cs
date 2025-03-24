@@ -100,124 +100,102 @@ namespace MVC_TestApp.Repositories
             }
         }
 
-        public async Task AddSubscriberAsync(Subscriber subscriber)
+        public async Task<bool> AddSubscriberAsync(Subscriber subscriber)
         {
             _logger.LogInformation("Adding new subscriber: {Email}", subscriber.Email);
             if (!_isConnectionValid)
             {
                 _logger.LogWarning("Connection to Cosmos DB is not valid. Cannot add subscriber.");
-                throw new InvalidOperationException("Cannot connect to CosmosDB");
+                return false;
             }
 
             try
             {
                 await _subscribers.InsertOneAsync(subscriber);
                 _logger.LogInformation("Successfully added subscriber: {Email}", subscriber.Email);
+                return true;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error adding subscriber {Email}", subscriber.Email);
-                throw;
+                return false;
             }
         }
 
-        public async Task UpdateSubscriberAsync(Subscriber subscriber)
+        public async Task<bool> UpdateSubscriberAsync(Subscriber subscriber)
         {
             _logger.LogInformation("Updating subscriber: {Id}, {Email}", subscriber.Id, subscriber.Email);
             if (!_isConnectionValid)
             {
                 _logger.LogWarning("Connection to Cosmos DB is not valid. Cannot update subscriber.");
-                throw new InvalidOperationException("Cannot connect to CosmosDB");
+                return false;
             }
 
             try
             {
                 var filter = Builders<Subscriber>.Filter.Eq(s => s.Id, subscriber.Id);
-                await _subscribers.ReplaceOneAsync(filter, subscriber);
-                _logger.LogInformation("Successfully updated subscriber: {Email}", subscriber.Email);
+                var result = await _subscribers.ReplaceOneAsync(filter, subscriber);
+                _logger.LogInformation("Successfully updated subscriber: {Email}, ModifiedCount: {Count}", 
+                    subscriber.Email, result.ModifiedCount);
+                
+                return result.ModifiedCount > 0;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error updating subscriber {Id}, {Email}", subscriber.Id, subscriber.Email);
-                throw;
+                return false;
             }
         }
 
-        public async Task DeleteSubscriberAsync(string id)
+        public async Task<bool> DeleteSubscriberAsync(string email)
         {
-            _logger.LogInformation("Deleting subscriber: {Id}", id);
+            _logger.LogInformation("Deleting subscriber by email: {Email}", email);
             if (!_isConnectionValid)
             {
                 _logger.LogWarning("Connection to Cosmos DB is not valid. Cannot delete subscriber.");
-                throw new InvalidOperationException("Cannot connect to CosmosDB");
+                return false;
             }
 
             try
             {
-                var filter = Builders<Subscriber>.Filter.Eq(s => s.Id, id);
-                await _subscribers.DeleteOneAsync(filter);
-                _logger.LogInformation("Successfully deleted subscriber: {Id}", id);
+                // Först hitta prenumeranten för att få ID
+                var subscriber = await GetSubscriberByEmailAsync(email);
+                if (subscriber == null)
+                {
+                    _logger.LogWarning("Subscriber not found for deletion: {Email}", email);
+                    return false;
+                }
+
+                // Ta bort med ID som är partitionsnyckel i Cosmos DB
+                var filter = Builders<Subscriber>.Filter.Eq(s => s.Id, subscriber.Id);
+                var result = await _subscribers.DeleteOneAsync(filter);
+                
+                _logger.LogInformation("Delete result for subscriber {Email}: DeletedCount={Count}", 
+                    email, result.DeletedCount);
+                
+                return result.DeletedCount > 0;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error deleting subscriber {Id}", id);
-                throw;
-            }
-        }
-
-        public Task<Subscriber?> GetSubscriberAsync(string email)
-        {
-            throw new NotImplementedException();
-        }
-
-        async Task<bool> ISubscriberRepository.AddSubscriberAsync(Subscriber subscriber)
-        {
-            try
-            {
-                await this.AddSubscriberAsync(subscriber);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error adding subscriber {Email}", subscriber.Email);
+                _logger.LogError(ex, "Error deleting subscriber by email {Email}", email);
                 return false;
             }
         }
 
-        async Task<bool> ISubscriberRepository.UpdateSubscriberAsync(Subscriber subscriber)
+        public async Task<bool> ExistsSubscriberAsync(string email)
         {
-            try
+            _logger.LogInformation("Checking if subscriber exists: {Email}", email);
+            if (!_isConnectionValid)
             {
-                await this.UpdateSubscriberAsync(subscriber);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error updating subscriber {Id}, {Email}", subscriber.Id, subscriber.Email);
+                _logger.LogWarning("Connection to Cosmos DB is not valid. Cannot check if subscriber exists.");
                 return false;
             }
-        }
 
-        async Task<bool> ISubscriberRepository.DeleteSubscriberAsync(string id)
-        {
             try
             {
-                await this.DeleteSubscriberAsync(id);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error deleting subscriber {Id}", id);
-                return false;
-            }
-        }
-
-        async Task<bool> ISubscriberRepository.ExistsSubscriberAsync(string email)
-        {
-            try
-            {
-                var subscriber = await this.GetSubscriberByEmailAsync(email);
-                return subscriber != null;
+                var filter = Builders<Subscriber>.Filter.Eq(s => s.Email, email);
+                var count = await _subscribers.CountDocumentsAsync(filter);
+                return count > 0;
             }
             catch (Exception ex)
             {
