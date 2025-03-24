@@ -496,7 +496,6 @@ jobs:
           echo "Testing SSH to bastion host at $BASTION_IP..."
           ssh -i ~/.ssh/clofresva_gc_upg02_azure_key -o ConnectTimeout=10 -p 2222 azureuser@$BASTION_IP "echo 'Bastion connection successful!'" || echo "WARNING: Bastion connection failed!"
 
-
           # Test SSH to app server via bastion
           echo "Testing SSH to app server at $APP_IP via bastion..."
           ssh -i ~/.ssh/clofresva_gc_upg02_azure_key -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP -p 2222" azureuser@$APP_IP "echo 'App server connection successful!'" || echo "WARNING: App server connection failed!"
@@ -568,6 +567,7 @@ jobs:
           echo "Testing SSH to bastion host at $BASTION_IP..."
           ssh -i ~/.ssh/clofresva_gc_upg02_azure_key -o ConnectTimeout=10 -p 2222 azureuser@$BASTION_IP "echo 'Bastion connection successful!'" || echo "WARNING: Bastion connection failed!"
 
+
           # Test SSH to app server via bastion
           echo "Testing SSH to app server at $APP_IP via bastion..."
           ssh -i ~/.ssh/clofresva_gc_upg02_azure_key -o ConnectTimeout=10 -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP" azureuser@$APP_IP "echo 'App server connection successful!'" || echo "WARNING: App server connection failed!"
@@ -600,7 +600,7 @@ jobs:
           echo "      ansible_ssh_private_key_file: ~/.ssh/clofresva_gc_upg02_azure_key" >> ./ansible/inventories/azure_rm.yaml
 
           # ProxyCommand för att nå app-servern via bastion
-          echo "      ansible_ssh_common_args: '-o ProxyCommand=ssh -W %h:%p -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP -p 2222'" >> ./ansible/inventories/azure_rm.yaml
+          echo "      ansible_ssh_common_args: '-o ProxyCommand=ssh -W $APP_IP:22 -i ~/.ssh/clofresva_gc_upg02_azure_key azureuser@$BASTION_IP -p 2222'" >> ./ansible/inventories/azure_rm.yaml
 
           echo "  vars:" >> ./ansible/inventories/azure_rm.yaml
           echo "    project_name: ${{ env.PROJECT_NAME }}" >> ./ansible/inventories/azure_rm.yaml
@@ -754,8 +754,8 @@ jobs:
   # Deploy the artifact to the app server.
   deploy-to-server:
     name: Deploy Artifact to App-Server
-    needs: [deploy-app]
-    if: ${{ (needs.deploy-app.result == 'success' && needs.deploy-app.result != 'skipped') || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_deployment == 'true') }}
+    needs: [check-changes, get-infrastructure-info, deploy-infrastructure, deploy-app]
+    if: ${{ always() && (needs.deploy-infrastructure.result == 'success' || needs.get-infrastructure-info.result == 'success') && (needs.check-changes.outputs.run_webapp == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.full_deployment == 'true')) }}
     runs-on: ubuntu-latest
     env:
       BASTION_IP: ${{ needs.deploy-infrastructure.outputs.BASTION_IP != '' && needs.deploy-infrastructure.outputs.BASTION_IP || needs.get-infrastructure-info.outputs.BASTION_IP }}
